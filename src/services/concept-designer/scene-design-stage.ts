@@ -12,6 +12,7 @@ import {
   normalizeMessageContent,
   shouldRetryWithoutImages
 } from '../concept-designer-utils'
+import { createChatCompletionText } from '../openai-stream'
 
 const logger = createLogger('SceneDesignStage')
 
@@ -55,19 +56,28 @@ export async function generateSceneDesignStage(params: SceneDesignStageParams): 
       hasImages: !!referenceImages?.length
     })
 
-    let response: Awaited<ReturnType<typeof client.chat.completions.create>>
+    let content = ''
+    let mode: 'stream' | 'non-stream' = 'stream'
+    let fallbackResponse: OpenAI.Chat.Completions.ChatCompletion | undefined
     if (onCheckpoint) await onCheckpoint()
 
     try {
-      response = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: buildVisionUserMessage(userPrompt, referenceImages) }
-        ],
-        temperature: designerTemperature,
-        max_tokens: designerMaxTokens
-      })
+      const completion = await createChatCompletionText(
+        client,
+        {
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: buildVisionUserMessage(userPrompt, referenceImages) }
+          ],
+          temperature: designerTemperature,
+          max_tokens: designerMaxTokens
+        },
+        { fallbackToNonStream: true }
+      )
+      content = completion.content
+      mode = completion.mode
+      fallbackResponse = completion.response
     } catch (error) {
       if (referenceImages && referenceImages.length > 0 && shouldRetryWithoutImages(error)) {
         logger.warn('模型不支持图片输入，使用纯文本重试', {
@@ -75,42 +85,51 @@ export async function generateSceneDesignStage(params: SceneDesignStageParams): 
           seed,
           error: error instanceof Error ? error.message : String(error)
         })
-        response = await client.chat.completions.create({
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: designerTemperature,
-          max_tokens: designerMaxTokens
-        })
+        const completion = await createChatCompletionText(
+          client,
+          {
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            temperature: designerTemperature,
+            max_tokens: designerMaxTokens
+          },
+          { fallbackToNonStream: true }
+        )
+        content = completion.content
+        mode = completion.mode
+        fallbackResponse = completion.response
       } else {
         throw error
       }
     }
     if (onCheckpoint) await onCheckpoint()
 
-    const content = normalizeMessageContent(response.choices[0]?.message?.content)
-    if (!content) {
+    const normalizedContent = normalizeMessageContent(content)
+    if (!normalizedContent) {
       logger.warn('设计者返回空内容', {
         concept,
         seed,
+        mode,
         model,
         systemPromptLength: systemPrompt.length,
         userPromptLength: userPrompt.length,
-        diagnostics: buildCompletionDiagnostics(response)
+        diagnostics: fallbackResponse ? buildCompletionDiagnostics(fallbackResponse) : { mode: 'stream' }
       })
       return ''
     }
 
-    const extractedDesign = extractDesignFromResponse(content)
+    const extractedDesign = extractDesignFromResponse(normalizedContent)
     const cleanedDesign = cleanDesignText(extractedDesign)
     if (cleanedDesign.changes.length > 0) {
       logger.info('设计方案已清洗', {
         concept,
         seed,
+        mode,
         changes: cleanedDesign.changes,
-        originalLength: content.length,
+        originalLength: normalizedContent.length,
         cleanedLength: cleanedDesign.text.length
       })
     }
@@ -123,6 +142,7 @@ export async function generateSceneDesignStage(params: SceneDesignStageParams): 
     logger.info('阶段1：场景设计方案生成成功', {
       concept,
       seed,
+      mode,
       designLength: cleanedDesign.text.length
     })
 

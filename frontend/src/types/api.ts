@@ -51,7 +51,7 @@ export interface VideoConfig {
   quality: Quality;
   /** 帧率 */
   frameRate: number;
-  /** 超时时间（秒），默认 600 秒（10 分钟） */
+  /** 超时时间（秒），默认 1200 秒（20 分钟） */
   timeout?: number;
 }
 

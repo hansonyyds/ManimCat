@@ -6,6 +6,7 @@ import {
   createCustomOpenAIClient,
   initializeDefaultOpenAIClient
 } from './openai-client-factory'
+import { createChatCompletionText } from './openai-stream'
 
 const logger = createLogger('CodeEditService')
 
@@ -83,24 +84,27 @@ export async function generateEditedManimCode(
 
     const model = customApiConfig?.model?.trim() || OPENAI_MODEL
 
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: CODER_TEMPERATURE,
-      max_tokens: MAX_TOKENS
-    })
+    const { content, mode } = await createChatCompletionText(
+      client,
+      {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: CODER_TEMPERATURE,
+        max_tokens: MAX_TOKENS
+      },
+      { fallbackToNonStream: true }
+    )
 
-    const content = response.choices[0]?.message?.content || ''
     if (!content) {
       logger.warn('AI 修改返回空内容')
       return ''
     }
 
     const extracted = extractCodeFromResponse(content, outputMode)
-    logger.info('AI 修改完成', { concept, outputMode, length: extracted.length })
+    logger.info('AI 修改完成', { concept, outputMode, mode, length: extracted.length })
     return extracted
   } catch (error) {
     if (error instanceof OpenAI.APIError) {

@@ -17,7 +17,7 @@ export interface VideoConfig {
   quality: VideoQuality
   /** 甯х巼 */
   frameRate: number
-  /** 瓒呮椂鏃堕棿锛堢锛夛紝榛樿 600 绉掞紙10 鍒嗛挓锛? */
+  /** 瓒呮椂鏃堕棿锛堢锛夛紝榛樿 1200 绉掞紙20 鍒嗛挓锛? */
   timeout?: number
 }
 

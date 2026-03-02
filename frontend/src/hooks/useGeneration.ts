@@ -21,7 +21,7 @@ interface UseGenerationReturn {
 const POLL_INTERVAL = 1000;
 
 function getTimeoutConfig(): number {
-  return loadSettings().video.timeout || 600;
+  return loadSettings().video.timeout || 1200;
 }
 
 export function useGeneration(): UseGenerationReturn {

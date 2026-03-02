@@ -2,7 +2,7 @@ import type { SettingsConfig } from '../types/api';
 
 const SETTINGS_KEY = 'manimcat_settings';
 const SETTINGS_VERSION_KEY = 'manimcat_settings_version';
-const SETTINGS_VERSION = '1';
+const SETTINGS_VERSION = '2';
 
 export const DEFAULT_SETTINGS: SettingsConfig = {
   api: {
@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS: SettingsConfig = {
   video: {
     quality: 'low',
     frameRate: 15,
-    timeout: 600
+    timeout: 1200
   }
 };
 
@@ -50,6 +50,23 @@ function sanitizeSettings(raw: unknown): SettingsConfig {
   };
 }
 
+function migrateSettings(raw: unknown, fromVersion: string | null): SettingsConfig {
+  const sanitized = sanitizeSettings(raw);
+
+  // v1 -> v2: 旧默认值为 600 秒，升级为 1200 秒作为新默认层级
+  if ((fromVersion === null || fromVersion === '1') && sanitized.video.timeout === 600) {
+    return {
+      ...sanitized,
+      video: {
+        ...sanitized.video,
+        timeout: 1200
+      }
+    };
+  }
+
+  return sanitized;
+}
+
 export function loadSettings(): SettingsConfig {
   const saved = localStorage.getItem(SETTINGS_KEY);
   if (!saved) {
@@ -59,7 +76,7 @@ export function loadSettings(): SettingsConfig {
   const version = localStorage.getItem(SETTINGS_VERSION_KEY);
   if (version !== SETTINGS_VERSION) {
     try {
-      const migrated = sanitizeSettings(JSON.parse(saved));
+      const migrated = migrateSettings(JSON.parse(saved), version);
       saveSettings(migrated);
       return migrated;
     } catch {

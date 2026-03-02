@@ -9,6 +9,7 @@ import {
   generateUniqueSeed,
   normalizeMessageContent
 } from '../concept-designer-utils'
+import { createChatCompletionText } from '../openai-stream'
 
 const logger = createLogger('CodeFromDesignStage')
 
@@ -52,37 +53,42 @@ export async function generateCodeFromDesignStage(params: CodeFromDesignStagePar
     logger.info('开始阶段2：根据设计方案生成代码', { concept, outputMode, seed })
     if (onCheckpoint) await onCheckpoint()
 
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: coderTemperature,
-      max_tokens: maxTokens
-    })
+    const { content, mode, response } = await createChatCompletionText(
+      client,
+      {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: coderTemperature,
+        max_tokens: maxTokens
+      },
+      { fallbackToNonStream: true }
+    )
     if (onCheckpoint) await onCheckpoint()
 
-    const content = normalizeMessageContent(response.choices[0]?.message?.content)
-    if (!content) {
+    const normalizedContent = normalizeMessageContent(content)
+    if (!normalizedContent) {
       logger.warn('代码生成者返回空内容', {
         concept,
         seed,
+        mode,
         model,
         systemPromptLength: systemPrompt.length,
         userPromptLength: userPrompt.length,
-        diagnostics: buildCompletionDiagnostics(response)
+        diagnostics: response ? buildCompletionDiagnostics(response) : { mode: 'stream' }
       })
       return ''
     }
 
-    logger.info('阶段2：代码生成成功', { concept, seed, codeLength: content.length })
+    logger.info('阶段2：代码生成成功', { concept, seed, mode, codeLength: normalizedContent.length })
 
     if (outputMode === 'image') {
-      return content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+      return normalizedContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
     }
 
-    return extractCodeFromResponse(content)
+    return extractCodeFromResponse(normalizedContent)
   } catch (error) {
     if (error instanceof OpenAI.APIError) {
       logger.error('代码生成者 API 错误', {

@@ -32,10 +32,10 @@ const queueOptions: QueueOptions = {
     },
     removeOnComplete: true,
     removeOnFail: true,
-    timeout: 600000
+    timeout: 1200000
   },
   settings: {
-    lockDuration: 600000,
+    lockDuration: 1200000,
     stalledInterval: 30000,
     maxStalledCount: 1
   }

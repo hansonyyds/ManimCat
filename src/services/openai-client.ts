@@ -12,6 +12,7 @@ import {
   createCustomOpenAIClient,
   initializeDefaultOpenAIClient
 } from './openai-client-factory'
+import { createChatCompletionText } from './openai-stream'
 import {
   extractCodeFromResponse,
   generateManimPrompt,
@@ -63,17 +64,20 @@ export async function generateAIManimCode(concept: string, customApiConfig?: Cus
 
     const model = customApiConfig?.model?.trim() || OPENAI_MODEL
 
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: AI_TEMPERATURE,
-      max_tokens: MAX_TOKENS
-    })
+    const { content, mode } = await createChatCompletionText(
+      client,
+      {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: AI_TEMPERATURE,
+        max_tokens: MAX_TOKENS
+      },
+      { fallbackToNonStream: true }
+    )
 
-    const content = response.choices[0]?.message?.content || ''
     if (!content) {
       logger.warn('AI 返回空内容')
       return ''
@@ -83,6 +87,7 @@ export async function generateAIManimCode(concept: string, customApiConfig?: Cus
     logger.info('AI 代码生成成功', {
       concept,
       seed,
+      mode,
       responseLength: content.length,
       response: content
     })

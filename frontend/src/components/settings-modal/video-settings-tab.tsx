@@ -39,6 +39,7 @@ export function VideoSettingsTab({ videoConfig, onUpdate }: VideoSettingsTabProp
           { value: 180, label: '3 分钟' },
           { value: 300, label: '5 分钟' },
           { value: 600, label: '10 分钟' },
+          { value: 1200, label: '20 分钟' },
         ]}
         value={videoConfig.timeout ?? DEFAULT_SETTINGS.video.timeout}
         onChange={(value) => onUpdate({ timeout: value })}

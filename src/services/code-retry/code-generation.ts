@@ -6,6 +6,7 @@ import { extractCodeFromResponse } from './utils'
 import type { CodeRetryContext } from './types'
 import { buildRetryPrompt, getCodeRetrySystemPrompt } from './prompt-builder'
 import { dedupeSharedBlocksInMessages } from '../prompt-dedup'
+import { createChatCompletionText } from '../openai-stream'
 
 const logger = createLogger('CodeRetryCodeGen')
 
@@ -36,14 +37,17 @@ export async function generateInitialCode(
       context.promptOverrides
     )
 
-    const response = await client.chat.completions.create({
-      model: getModel(customApiConfig),
-      messages: requestMessages,
-      temperature: AI_TEMPERATURE,
-      max_tokens: MAX_TOKENS
-    })
+    const { content, mode } = await createChatCompletionText(
+      client,
+      {
+        model: getModel(customApiConfig),
+        messages: requestMessages,
+        temperature: AI_TEMPERATURE,
+        max_tokens: MAX_TOKENS
+      },
+      { fallbackToNonStream: true }
+    )
 
-    const content = response.choices[0]?.message?.content || ''
     if (!content) {
       throw new Error('AI 返回空内容')
     }
@@ -53,6 +57,7 @@ export async function generateInitialCode(
 
     logger.info('首次代码生成成功', {
       concept: context.concept,
+      mode,
       codeLength: cleaned.code.length
     })
 
@@ -91,14 +96,17 @@ export async function retryCodeGeneration(
       context.promptOverrides
     )
 
-    const response = await client.chat.completions.create({
-      model: getModel(customApiConfig),
-      messages: requestMessages,
-      temperature: AI_TEMPERATURE,
-      max_tokens: MAX_TOKENS
-    })
+    const { content, mode } = await createChatCompletionText(
+      client,
+      {
+        model: getModel(customApiConfig),
+        messages: requestMessages,
+        temperature: AI_TEMPERATURE,
+        max_tokens: MAX_TOKENS
+      },
+      { fallbackToNonStream: true }
+    )
 
-    const content = response.choices[0]?.message?.content || ''
     if (!content) {
       throw new Error('AI 返回空内容')
     }
@@ -109,6 +117,7 @@ export async function retryCodeGeneration(
     logger.info('代码重试生成成功', {
       concept: context.concept,
       attempt,
+      mode,
       codeLength: cleaned.code.length
     })
 

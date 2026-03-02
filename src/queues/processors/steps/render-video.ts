@@ -28,7 +28,7 @@ export async function renderVideo(
   const { manimCode, usedAI, generationType, sceneDesign } = codeResult
 
   const frameRate = videoConfig?.frameRate || 15
-  const timeoutMs = (videoConfig?.timeout && videoConfig.timeout > 0 ? videoConfig.timeout : 600) * 1000
+  const timeoutMs = (videoConfig?.timeout && videoConfig.timeout > 0 ? videoConfig.timeout : 1200) * 1000
 
   logger.info('Rendering video', { jobId, quality, usedAI, frameRate, timeoutMs })
 
