@@ -4,8 +4,7 @@ emoji: 🐱
 colorFrom: gray
 colorTo: blue
 sdk: docker
-sdk_version: "3.10"
-app_file: start-with-redis-hf.cjs
+app_port: 7860
 pinned: false
 ---
 

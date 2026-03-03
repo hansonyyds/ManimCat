@@ -35,10 +35,7 @@ RUN npm install && npm --prefix frontend install
 COPY . .
 RUN npm run build
 
-# 7. 启动脚本
-RUN printf '#!/bin/bash\nredis-server --daemonize yes\nnpm run start' > /app/start.sh && chmod +x /app/start.sh
-
 ENV PORT=7860
 EXPOSE 7860
 
-CMD ["/app/start.sh"]
+CMD ["node", "start-with-redis-hf.cjs"]

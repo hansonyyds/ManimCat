@@ -70,7 +70,7 @@ function startNodeApp() {
   return new Promise((resolve, reject) => {
     console.log('Starting Node.js application...')
 
-    const nodeApp = spawn('node', ['dist/server.js'], {
+    const nodeApp = spawn('npm', ['run', 'start'], {
       stdio: 'inherit',
       env: {
         ...process.env,
