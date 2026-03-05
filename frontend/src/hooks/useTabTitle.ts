@@ -4,7 +4,6 @@ import type { ProcessingStage } from '../types/api';
 type GenerationStatus = 'idle' | 'processing' | 'completed' | 'error';
 
 const BASE_TITLE = 'ManimCat - 数学动画生成器';
-const TITLE_SCROLL_INTERVAL_MS = 220;
 
 function getStageTitle(stage: ProcessingStage): string {
   switch (stage) {
@@ -37,44 +36,10 @@ function getTabTitle(status: GenerationStatus, stage: ProcessingStage): string {
 
 export function useTabTitle(status: GenerationStatus, stage: ProcessingStage): void {
   useEffect(() => {
-    const title = getTabTitle(status, stage);
-    let scrollTimer: number | null = null;
-
-    const stopScroll = () => {
-      if (scrollTimer !== null) {
-        window.clearInterval(scrollTimer);
-        scrollTimer = null;
-      }
-    };
-
-    const applyTitleBehavior = () => {
-      const shouldScroll =
-        document.hidden && (status === 'processing' || status === 'completed' || status === 'error');
-
-      if (!shouldScroll) {
-        stopScroll();
-        document.title = title;
-        return;
-      }
-
-      const loopText = `   ${title}   `;
-      let cursor = 0;
-      stopScroll();
-      scrollTimer = window.setInterval(() => {
-        const rendered = `${loopText.slice(cursor)}${loopText.slice(0, cursor)}`;
-        document.title = rendered;
-        cursor = (cursor + 1) % loopText.length;
-      }, TITLE_SCROLL_INTERVAL_MS);
-    };
-
-    applyTitleBehavior();
-    document.addEventListener('visibilitychange', applyTitleBehavior);
+    document.title = getTabTitle(status, stage);
 
     return () => {
-      stopScroll();
-      document.removeEventListener('visibilitychange', applyTitleBehavior);
       document.title = BASE_TITLE;
     };
   }, [status, stage]);
 }
-
