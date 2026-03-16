@@ -167,7 +167,8 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
   }, [isOpen, selectedProvider?.id, selectedProvider?.apiUrl, selectedProvider?.apiKey, selectedProvider?.model]);
 
   const setActiveProvider = (id: string) => {
-    setConfig((prev) => ({ ...prev, api: { ...prev.api, activeProviderId: id } }));
+    const isAlreadyActive = config.api.activeProviderId === id;
+    setConfig((prev) => ({ ...prev, api: { ...prev.api, activeProviderId: isAlreadyActive ? null : id } }));
     setSelectedProviderId(id);
     setDeleteDialogOpen(false);
   };

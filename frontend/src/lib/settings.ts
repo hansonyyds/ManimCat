@@ -91,9 +91,11 @@ function sanitizeSettings(raw: unknown): SettingsConfig {
   const activeProviderId =
     typeof activeProviderIdRaw === 'string' && providers.some((provider) => provider.id === activeProviderIdRaw)
       ? activeProviderIdRaw
-      : providers.length > 0
-        ? providers[0].id
-        : null;
+      : activeProviderIdRaw === null
+        ? null
+        : providers.length > 0
+          ? providers[0].id
+          : null;
 
   return {
     api: {
