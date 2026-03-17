@@ -33,6 +33,16 @@ RUN npm install && npm --prefix frontend install
 
 # 6. 复制源码并构建 React
 COPY . .
+
+# 7. 下载 BGM 音频文件（HF Space 同步时排除了二进制文件）
+RUN mkdir -p src/audio/tracks && \
+    curl -fsSL -o src/audio/tracks/clavier-music-soft-piano-music-312509.mp3 \
+      "https://github.com/Wing900/ManimCat/raw/main/src/audio/tracks/clavier-music-soft-piano-music-312509.mp3" && \
+    curl -fsSL -o src/audio/tracks/the_mountain-soft-piano-background-444129.mp3 \
+      "https://github.com/Wing900/ManimCat/raw/main/src/audio/tracks/the_mountain-soft-piano-background-444129.mp3" && \
+    curl -fsSL -o src/audio/tracks/viacheslavstarostin-relaxing-soft-piano-music-431679.mp3 \
+      "https://github.com/Wing900/ManimCat/raw/main/src/audio/tracks/viacheslavstarostin-relaxing-soft-piano-music-431679.mp3" || true
+
 RUN npm run build
 
 ENV PORT=7860

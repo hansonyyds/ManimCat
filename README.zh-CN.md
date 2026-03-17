@@ -86,32 +86,19 @@
 
 ## 样例
 
-### 01
-
-> 用双栏布局，解释正弦函数的拉伸变换和解析式的关系
-
-<div align="center">   <video src="https://github.com/user-attachments/assets/56528268-972d-45f6-9145-0531337cbffa" width="80%" autoplay loop muted playsinline>   </video>   <p><i>example01</i></p> </div>
-
-### 02
-
-> 画一个单位圆并且生成正弦函数
-
 <div align="center">
 
-  <video src="https://github.com/user-attachments/assets/0fa7b853-7388-466c-ae46-93cf009277c4" width="80%" autoplay loop muted playsinline>
+> *$1/4 + 1/16 + 1/64 + \dots = 1/3$，证明这个等式，美丽的图形方法，优雅的缩放平稳镜头移动，慢节奏，至少两分钟，逻辑清晰，奶黄色背景，马卡龙色系*
+
+<br>
+
+<a href="https://github.com/user-attachments/assets/38dba3ba-e29f-458d-b8ea-baf10cade4f1">
+  <video src="https://github.com/user-attachments/assets/38dba3ba-e29f-458d-b8ea-baf10cade4f1" width="85%" autoplay loop muted playsinline>
   </video>
-  <p><i>example02</i></p>
-</div>
+</a>
 
-### 03
+<sub>▲ 含背景音乐 · 几何级数证明 · ManimCat 生成</sub>
 
-> $1/4 + 1/16 + 1/64 + \dots = 1/3$，证明这个等式，美丽的图形方法，优雅的缩放平稳镜头移动，慢节奏，至少两分钟，逻辑清晰，奶黄色背景，马卡龙色系
-
-<div align="center">
-
-  <video src="https://github.com/user-attachments/assets/c48021ed-d5c4-4be1-b09e-8d3a716d8d10" width="80%" autoplay loop muted playsinline>
-  </video>
-  <p><i>example03</i></p>
 </div>
 
 
@@ -307,6 +294,8 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 
   - 生成历史：持久化历史记录存储于 Supabase（仅存文字：提示词、代码、元数据；不存储视频/图片），通过 `ENABLE_HISTORY_DB` 环境变量开关
 
+  - 背景音乐：视频渲染后自动混入钢琴 BGM（-20dB，随机选曲+随机起点，末尾 3 秒淡出），可在视频设置中开关
+
 
 
 <details>
@@ -395,6 +384,7 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
   </a>
   <p><i>感谢你的支持，我会更有动力维护这个项目！</i></p>
 </details>
+
 ## 致谢
 
 - 原项目作者

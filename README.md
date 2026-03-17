@@ -96,32 +96,19 @@ Users only need to describe what they want in natural language. The system then 
 
 ## Examples
 
-### 01
-
-> Use a two-column layout to explain the relationship between sinusoidal stretching transformations and their analytic expressions.
-
-<div align="center">   <video src="https://github.com/user-attachments/assets/56528268-972d-45f6-9145-0531337cbffa" width="80%" autoplay loop muted playsinline>   </video>   <p><i>example01</i></p> </div>
-
-### 02
-
-> Draw a unit circle and generate the sine function.
-
 <div align="center">
 
-  <video src="https://github.com/user-attachments/assets/0fa7b853-7388-466c-ae46-93cf009277c4" width="80%" autoplay loop muted playsinline>
+> *Prove that $1/4 + 1/16 + 1/64 + \dots = 1/3$ using a beautiful geometric method, elegant zooming, smooth camera movement, a slow pace, at least two minutes of duration, clear logic, a creamy yellow background, and a macaroon-inspired palette.*
+
+<br>
+
+<a href="https://github.com/user-attachments/assets/38dba3ba-e29f-458d-b8ea-baf10cade4f1">
+  <video src="https://github.com/user-attachments/assets/38dba3ba-e29f-458d-b8ea-baf10cade4f1" width="85%" autoplay loop muted playsinline>
   </video>
-  <p><i>example02</i></p>
-</div>
+</a>
 
-### 03
+<sub>▲ Generated with BGM · Geometric Series Proof · ManimCat</sub>
 
-> Prove that $1/4 + 1/16 + 1/64 + \dots = 1/3$ using a beautiful geometric method, elegant zooming, smooth camera movement, a slow pace, at least two minutes of duration, clear logic, a creamy yellow background, and a macaroon-inspired palette.
-
-<div align="center">
-
-  <video src="https://github.com/user-attachments/assets/c48021ed-d5c4-4be1-b09e-8d3a716d8d10" width="80%" autoplay loop muted playsinline>
-  </video>
-  <p><i>example03</i></p>
 </div>
 
 
@@ -298,6 +285,7 @@ I made fairly extensive modifications and refactors to the original project so i
 - Frontend multi-profile API polling and sharded routing, with `url/key/model/manimcat key` matched by index
 - Workspace: unified full-screen management page combining generation history, prompt management, and usage dashboard with a left rail navigation
 - Generation history: persistent history stored in Supabase (text-only: prompt, code, metadata; videos/images are not stored), feature-flagged via `ENABLE_HISTORY_DB`
+- Background music: automatic piano BGM mixing after video render (-20dB, random track and start offset, 3-second fade-out), toggleable in video settings
 
 <details>
   <summary>Prompt feature notes</summary>
