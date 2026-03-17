@@ -38,7 +38,8 @@ export const appConfig = {
   // AI 配置（上游地址/密钥/模型由 MANIMCAT_ROUTE_* 或请求 customApiConfig 提供）
   ai: {
     temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1200', 10)
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '12000', 10),
+    thinkingTokens: parseInt(process.env.AI_THINKING_TOKENS || '20000', 10)
   },
 
   // Manim 配置

@@ -194,9 +194,11 @@
 | `MANIMCAT_ROUTE_API_KEYS` | - | 上游 API 密钥列表（与 `MANIMCAT_ROUTE_KEYS` 按索引配对） |
 | `MANIMCAT_ROUTE_MODELS` | - | 上游模型列表（与 `MANIMCAT_ROUTE_KEYS` 按索引配对）。留空表示禁用该 key（无可用模型） |
 | `AI_TEMPERATURE` | `0.7` | 生成温度 |
-| `AI_MAX_TOKENS` | `1200` | 生成最大 tokens |
+| `AI_MAX_TOKENS` | `12000` | 最大输出 token 数 |
+| `AI_THINKING_TOKENS` | `20000` | 最大思维链 token 数 |
 | `DESIGNER_TEMPERATURE` | `0.8` | 设计师温度 |
-| `DESIGNER_MAX_TOKENS` | `12000` | 设计师最大 tokens |
+| `DESIGNER_MAX_TOKENS` | `12000` | 设计师最大输出 token 数 |
+| `DESIGNER_THINKING_TOKENS` | `20000` | 设计师最大思维链 token 数 |
 | `REQUEST_TIMEOUT` | `600000` | 请求超时（毫秒） |
 | `JOB_TIMEOUT` | `600000` | 任务超时（毫秒） |
 | `MANIM_TIMEOUT` | `600000` | Manim 渲染超时（毫秒） |

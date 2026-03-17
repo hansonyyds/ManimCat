@@ -211,9 +211,11 @@ User request -> POST /api/generate (outputMode: video | image)
 | `MANIMCAT_ROUTE_API_KEYS` | - | Upstream API keys matched to `MANIMCAT_ROUTE_KEYS` by index |
 | `MANIMCAT_ROUTE_MODELS` | - | Upstream models matched to `MANIMCAT_ROUTE_KEYS` by index. Leave empty to disable a key (no model available) |
 | `AI_TEMPERATURE` | `0.7` | Generation temperature |
-| `AI_MAX_TOKENS` | `1200` | Maximum generation tokens |
+| `AI_MAX_TOKENS` | `12000` | Maximum output tokens |
+| `AI_THINKING_TOKENS` | `20000` | Maximum thinking (chain-of-thought) tokens |
 | `DESIGNER_TEMPERATURE` | `0.8` | Designer temperature |
-| `DESIGNER_MAX_TOKENS` | `12000` | Maximum designer tokens |
+| `DESIGNER_MAX_TOKENS` | `12000` | Maximum designer output tokens |
+| `DESIGNER_THINKING_TOKENS` | `20000` | Maximum designer thinking tokens |
 | `REQUEST_TIMEOUT` | `600000` | Request timeout in milliseconds |
 | `JOB_TIMEOUT` | `600000` | Job timeout in milliseconds |
 | `MANIM_TIMEOUT` | `600000` | Manim render timeout in milliseconds |

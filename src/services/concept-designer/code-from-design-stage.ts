@@ -10,6 +10,7 @@ import {
   normalizeMessageContent
 } from '../concept-designer-utils'
 import { createChatCompletionText } from '../openai-stream'
+import { buildTokenParams } from '../../utils/reasoning-model'
 
 const logger = createLogger('CodeFromDesignStage')
 
@@ -22,6 +23,7 @@ interface CodeFromDesignStageParams {
   promptOverrides?: PromptOverrides
   coderTemperature: number
   maxTokens: number
+  thinkingTokens: number
   onCheckpoint?: () => Promise<void>
 }
 
@@ -39,6 +41,7 @@ export async function generateCodeFromDesignStage(params: CodeFromDesignStagePar
     promptOverrides,
     coderTemperature,
     maxTokens,
+    thinkingTokens,
     onCheckpoint
   } = params
 
@@ -62,7 +65,7 @@ export async function generateCodeFromDesignStage(params: CodeFromDesignStagePar
           { role: 'user', content: userPrompt }
         ],
         temperature: coderTemperature,
-        max_tokens: maxTokens
+        ...buildTokenParams(thinkingTokens, maxTokens)
       },
       { fallbackToNonStream: true, usageLabel: 'code-generation' }
     )

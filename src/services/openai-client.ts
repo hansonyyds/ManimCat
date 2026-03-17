@@ -14,11 +14,13 @@ import {
   generateUniqueSeed,
   OPENAI_MANIM_SYSTEM_PROMPT
 } from './openai-client-utils'
+import { buildTokenParams } from '../utils/reasoning-model'
 
 const logger = createLogger('OpenAIClient')
 
 const AI_TEMPERATURE = parseFloat(process.env.AI_TEMPERATURE || '0.7')
-const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '1200', 10)
+const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '12000', 10)
+const THINKING_TOKENS = parseInt(process.env.AI_THINKING_TOKENS || '20000', 10)
 
 export interface BackendTestResult {
   model: string
@@ -90,7 +92,7 @@ export async function generateAIManimCode(concept: string, customApiConfig: Cust
           { role: 'user', content: userPrompt }
         ],
         temperature: AI_TEMPERATURE,
-        max_tokens: MAX_TOKENS
+        ...buildTokenParams(THINKING_TOKENS, MAX_TOKENS)
       },
       { fallbackToNonStream: true, usageLabel: 'single-stage-generation' }
     )

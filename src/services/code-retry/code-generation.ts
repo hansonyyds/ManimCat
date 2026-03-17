@@ -7,11 +7,13 @@ import type { CodeRetryContext } from './types'
 import { buildRetryPrompt, getCodeRetrySystemPrompt } from './prompt-builder'
 import { dedupeSharedBlocksInMessages } from '../prompt-dedup'
 import { createChatCompletionText } from '../openai-stream'
+import { buildTokenParams } from '../../utils/reasoning-model'
 
 const logger = createLogger('CodeRetryCodeGen')
 
 const AI_TEMPERATURE = parseFloat(process.env.AI_TEMPERATURE || '0.7')
-const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '1200', 10)
+const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '12000', 10)
+const THINKING_TOKENS = parseInt(process.env.AI_THINKING_TOKENS || '20000', 10)
 
 function getModel(customApiConfig?: unknown): string {
   const model = (customApiConfig as { model?: string } | undefined)?.model
@@ -46,7 +48,7 @@ export async function generateInitialCode(
         model: getModel(customApiConfig),
         messages: requestMessages,
         temperature: AI_TEMPERATURE,
-        max_tokens: MAX_TOKENS
+        ...buildTokenParams(THINKING_TOKENS, MAX_TOKENS)
       },
       { fallbackToNonStream: true, usageLabel: 'retry-initial' }
     )
@@ -105,7 +107,7 @@ export async function retryCodeGeneration(
         model: getModel(customApiConfig),
         messages: requestMessages,
         temperature: AI_TEMPERATURE,
-        max_tokens: MAX_TOKENS
+        ...buildTokenParams(THINKING_TOKENS, MAX_TOKENS)
       },
       { fallbackToNonStream: true, usageLabel: `retry-${attempt}` }
     )

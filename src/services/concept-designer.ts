@@ -16,7 +16,9 @@ const logger = createLogger('ConceptDesigner')
 const DESIGNER_TEMPERATURE = parseFloat(process.env.DESIGNER_TEMPERATURE || '0.8')
 const CODER_TEMPERATURE = parseFloat(process.env.AI_TEMPERATURE || '0.7')
 const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '12000', 10)
+const THINKING_TOKENS = parseInt(process.env.AI_THINKING_TOKENS || '20000', 10)
 const DESIGNER_MAX_TOKENS = parseInt(process.env.DESIGNER_MAX_TOKENS || '12000', 10)
+const DESIGNER_THINKING_TOKENS = parseInt(process.env.DESIGNER_THINKING_TOKENS || '20000', 10)
 
 function createCustomClient(config: CustomApiConfig): OpenAI {
   return createCustomOpenAIClient(config)
@@ -61,6 +63,7 @@ export async function generateTwoStageAIManimCode(
     referenceImages,
     designerTemperature: DESIGNER_TEMPERATURE,
     designerMaxTokens: DESIGNER_MAX_TOKENS,
+    designerThinkingTokens: DESIGNER_THINKING_TOKENS,
     onCheckpoint
   })
 
@@ -79,6 +82,7 @@ export async function generateTwoStageAIManimCode(
     promptOverrides,
     coderTemperature: CODER_TEMPERATURE,
     maxTokens: MAX_TOKENS,
+    thinkingTokens: THINKING_TOKENS,
     onCheckpoint
   })
 

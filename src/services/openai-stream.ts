@@ -128,7 +128,7 @@ export async function createChatCompletionText(
     stream: true,
     fallbackEnabled: effectiveFallback,
     ...stats,
-    maxTokens: (request as { max_tokens?: unknown }).max_tokens
+    maxTokens: (request as { max_completion_tokens?: unknown }).max_completion_tokens ?? (request as { max_tokens?: unknown }).max_tokens
   })
 
   let receivedContent = false
@@ -264,7 +264,7 @@ export async function createChatCompletionText(
       label: options.usageLabel || 'chat-completion',
       model,
       mode: 'stream',
-      maxTokens: (request as { max_tokens?: unknown }).max_tokens,
+      maxTokens: (request as { max_completion_tokens?: unknown }).max_completion_tokens ?? (request as { max_tokens?: unknown }).max_tokens,
       usage: streamUsage
     })
 
@@ -305,7 +305,7 @@ export async function createChatCompletionText(
           label: options.usageLabel || 'chat-completion',
           model,
           mode: 'stream-partial',
-          maxTokens: (request as { max_tokens?: unknown }).max_tokens,
+          maxTokens: (request as { max_completion_tokens?: unknown }).max_completion_tokens ?? (request as { max_tokens?: unknown }).max_tokens,
           usage: streamUsage
         })
         return {
@@ -329,7 +329,7 @@ export async function createChatCompletionText(
         label: options.usageLabel || 'chat-completion',
         model,
         mode: 'non-stream',
-        maxTokens: (request as { max_tokens?: unknown }).max_tokens,
+        maxTokens: (request as { max_completion_tokens?: unknown }).max_completion_tokens ?? (request as { max_tokens?: unknown }).max_tokens,
         usage: (response as unknown as { usage?: typeof streamUsage }).usage
       })
 
@@ -344,7 +344,7 @@ export async function createChatCompletionText(
       label: options.usageLabel || 'chat-completion',
       model,
       mode: 'stream',
-      maxTokens: (request as { max_tokens?: unknown }).max_tokens,
+      maxTokens: (request as { max_completion_tokens?: unknown }).max_completion_tokens ?? (request as { max_tokens?: unknown }).max_tokens,
       usage: streamUsage
     })
 
