@@ -4,7 +4,7 @@
 
 - **No chatter**: do not add any filler such as "Sure, here is your code" before or after the code
 - **No Markdown wrapping**: do not wrap the code in Markdown fences
-- **Chinese-rendering forbidden zone**: if Chinese text ever appears, it must only be rendered with `Text()` or `MarkupText()`. Never put Chinese inside `MathTex` or `Tex`, never mix formulas and Chinese in the same LaTeX fragment, and never include Chinese characters and `MathTex` or `Tex` formula content in the same line of code
+- **Text Rendering Rule**: **Strictly forbid executing `self.play()` or any Manim method directly on raw Python strings (e.g., `"text"`)**. All text (including English, Chinese, numbers, or symbols) must first be wrapped in `Text()`, `Tex()`, or `MathTex()` as an Mobject. Chinese text must only use `Text()` or `MarkupText()`, never `MathTex`/`Tex`.
 - **No legacy syntax**: do not use `ShowCreation`, `TextMobject`, `TexMobject`, or `number_scale_val`
 
 ### Error Correction

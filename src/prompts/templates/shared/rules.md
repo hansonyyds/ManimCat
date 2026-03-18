@@ -4,7 +4,7 @@
 
 - **严禁解释**：禁止在代码前后添加任何类似 "Sure, here is your code" 的废话
 - **严禁 Markdown**：禁止使用 Markdown 语法包装代码
-- **中文渲染禁区**：任何中文说明必须只使用 `Text()` 或 `MarkupText()`，严禁在 `MathTex`/`Tex` 中写中文；公式和中文禁止混用；禁止在同一行代码中同时出现中文字符与 `MathTex`/`Tex` 公式内容
+- **文字渲染铁律**：**严禁直接对任何原生字符串（如 `"text"`）执行 `self.play()` 或任何 Manim 动画方法**。所有文字（中文、英文、数字或符号）必须先包装在 `Text()`、`Tex()` 或 `MathTex()` 中成为 Mobject 对象。其中，中文说明必须只使用 `Text()` 或 `MarkupText()`，严禁在 `MathTex`/`Tex` 中写中文；公式和中文禁止混用。
 - **严禁旧语法**：禁止使用 `ShowCreation`, `TextMobject`, `TexMobject`, `number_scale_val`
 
 ### 错误纠正
