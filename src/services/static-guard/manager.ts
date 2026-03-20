@@ -14,6 +14,12 @@ const STATIC_GUARD_TEMPERATURE = parseFloat(process.env.STATIC_GUARD_TEMPERATURE
 const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '12000', 10)
 const THINKING_TOKENS = parseInt(process.env.AI_THINKING_TOKENS || '20000', 10)
 
+const SIMPLE_TUPLE_LIKE_PATTERN = /^\s*[-+.\w]+\s*(,\s*[-+.\w]+\s*){1,2}$/
+const RANGE_PARAM_NAMES = new Set(['x_range', 'y_range', 'z_range', 'u_range', 'v_range', 't_range'])
+const POINT_PARAM_NAMES = new Set(['point', 'start', 'end', 'center', 'arc_center'])
+const POSITIONAL_POINT_CONSTRUCTORS = ['Dot', 'Dot3D', 'Vector']
+const POSITIONAL_TWO_POINT_CONSTRUCTORS = ['Line', 'Arrow', 'DoubleArrow', 'Line3D', 'Arrow3D', 'DashedLine', 'ArcBetweenPoints']
+
 function extractJsonObject(text: string): string {
   const normalized = text.trim()
   if (/^\s*<!DOCTYPE\s+html/i.test(normalized) || /^\s*<html/i.test(normalized)) {
@@ -61,6 +67,75 @@ function parsePatchResponse(content: string): StaticPatch {
 
 function getLineNumberAtIndex(text: string, index: number): number {
   return text.slice(0, index).split('\n').length
+}
+
+function replaceBracketLiteralWithTuple(source: string): string {
+  return source.replace(/\[([^\[\]\n]+)\]/g, (match, inner) => {
+    if (!SIMPLE_TUPLE_LIKE_PATTERN.test(inner)) {
+      return match
+    }
+    return `(${inner.trim()})`
+  })
+}
+
+function extractDiagnosticParameterName(message: string): string | undefined {
+  const match = message.match(/parameter\s+"([^"]+)"/i)
+  return match?.[1]
+}
+
+function tryApplyKnownPyrightFix(code: string, diagnostic: StaticDiagnostic): string | null {
+  if (diagnostic.tool !== 'pyright' || diagnostic.code !== 'reportArgumentType') {
+    return null
+  }
+
+  const normalizedMessage = diagnostic.message.toLowerCase()
+  if (!normalizedMessage.includes('list[')) {
+    return null
+  }
+  if (!normalizedMessage.includes('tuple[') && !normalizedMessage.includes('point3dlike')) {
+    return null
+  }
+
+  const parameterName = extractDiagnosticParameterName(diagnostic.message)
+  let nextCode = code
+
+  if (parameterName && RANGE_PARAM_NAMES.has(parameterName)) {
+    nextCode = nextCode.replace(
+      new RegExp(`\\b${parameterName}\\s*=\\s*\\[([^\\[\\]\\n]+)\\]`, 'g'),
+      (_, inner: string) => `${parameterName}=(${inner.trim()})`
+    )
+  }
+
+  if (parameterName && POINT_PARAM_NAMES.has(parameterName)) {
+    for (const constructorName of POSITIONAL_POINT_CONSTRUCTORS) {
+      nextCode = nextCode.replace(
+        new RegExp(`\\b${constructorName}\\s*\\(\\s*\\[([^\\[\\]\\n]+)\\]`, 'g'),
+        (_, inner: string) => `${constructorName}((${inner.trim()})`
+      )
+    }
+
+    for (const constructorName of POSITIONAL_TWO_POINT_CONSTRUCTORS) {
+      nextCode = nextCode.replace(
+        new RegExp(`\\b${constructorName}\\s*\\(\\s*\\[([^\\[\\]\\n]+)\\]\\s*,\\s*\\[([^\\[\\]\\n]+)\\]`, 'g'),
+        (_, startInner: string, endInner: string) =>
+          `${constructorName}((${startInner.trim()}), (${endInner.trim()})`
+      )
+    }
+
+    nextCode = nextCode.replace(
+      new RegExp(`\\b${parameterName}\\s*=\\s*\\[([^\\[\\]\\n]+)\\]`, 'g'),
+      (_, inner: string) => `${parameterName}=(${inner.trim()})`
+    )
+  }
+
+  const lines = nextCode.split('\n')
+  const targetIndex = diagnostic.line - 1
+  if (targetIndex >= 0 && targetIndex < lines.length) {
+    lines[targetIndex] = replaceBracketLiteralWithTuple(lines[targetIndex])
+    nextCode = lines.join('\n')
+  }
+
+  return nextCode !== code ? nextCode : null
 }
 
 function applyPatch(code: string, patch: StaticPatch, targetLine: number): string {
@@ -157,6 +232,18 @@ export async function runStaticGuardLoop(
       code: diagnostic.code,
       message: diagnostic.message
     })
+
+    const knownFixedCode = tryApplyKnownPyrightFix(currentCode, diagnostic)
+    if (knownFixedCode) {
+      currentCode = knownFixedCode
+      logger.info('Static guard applied known pyright tuple fix', {
+        passIndex,
+        line: diagnostic.line,
+        code: diagnostic.code,
+        message: diagnostic.message
+      })
+      continue
+    }
 
     const patch = await generateStaticPatch(currentCode, diagnostic, customApiConfig)
     currentCode = applyPatch(currentCode, patch, diagnostic.line)
