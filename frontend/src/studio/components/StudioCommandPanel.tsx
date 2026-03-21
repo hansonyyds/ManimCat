@@ -1,85 +1,152 @@
-import { useI18n } from '../../i18n';
-import type { StudioMessageItem } from '../types';
+import { useEffect, useRef, useState } from 'react'
+import type { StudioMessage, StudioSession } from '../protocol/studio-agent-types'
+import { formatStudioTime } from '../theme'
 
 interface StudioCommandPanelProps {
-  messages: StudioMessageItem[];
-  onExit: () => void;
+  session: StudioSession | null
+  messages: StudioMessage[]
+  disabled: boolean
+  onRun: (inputText: string) => Promise<void> | void
+  onExit: () => void
 }
 
-export function StudioCommandPanel({ messages, onExit }: StudioCommandPanelProps) {
-  const { t } = useI18n();
+export function StudioCommandPanel({
+  session,
+  messages,
+  disabled,
+  onRun,
+  onExit,
+}: StudioCommandPanelProps) {
+  const [input, setInput] = useState('')
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const handleSubmit = async () => {
+    const next = input.trim()
+    if (!next || disabled) {
+      return
+    }
+    setInput('')
+    await onRun(next)
+  }
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages])
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col h-full">
-      <header className="flex items-center justify-between px-[6%] pt-12 pb-8">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent-rgb/40 animate-pulse" />
-            <h1 className="text-[20px] font-normal tracking-[0.06em] text-text-primary/90">ManimCat Studio</h1>
-          </div>
-          <p className="text-[11px] uppercase tracking-[0.3em] text-text-secondary/40 font-light">
-            {t('studio.description')}
-          </p>
+    <section className="studio-terminal flex min-w-0 flex-1 flex-col bg-bg-primary/30 shadow-[inset_0_0_40px_rgba(0,0,0,0.02)]">
+      <header className="flex items-center justify-between gap-4 border-b border-border/10 px-8 py-3">
+        <div className="font-mono text-xs text-text-secondary/50">
+          {session?.directory ?? '...'}
         </div>
-
         <button
           type="button"
           onClick={onExit}
-          className="group flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-bg-secondary/40 border border-border/5 text-[10px] uppercase tracking-[0.25em] text-text-secondary transition-all hover:bg-red-500/5 hover:text-red-500/70 hover:border-red-500/10 active:scale-[0.96]"
+          className="px-4 py-2 text-xs text-text-secondary/50 transition hover:text-rose-500/75"
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-text-secondary/20 transition-colors group-hover:bg-red-500/40" />
-          {t('studio.exit')}
+          退出
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-[6%] pb-12 pt-4 flex flex-col gap-10 scrollbar-hide">
-        {messages.map((message) => (
-          <article 
-            key={message.id} 
-            className={`flex flex-col gap-4 max-w-3xl animate-fade-in-soft ${
-              message.role === 'user' ? 'ml-auto items-end' : 'items-start'
-            }`}
-          >
-            <div className={`px-8 py-5 rounded-[2.5rem] text-[15px] leading-8 shadow-sm ${
-              message.role === 'user' 
-                ? 'bg-accent-rgb/5 text-text-primary/80 italic rounded-tr-sm' 
-                : 'bg-bg-secondary/40 text-text-primary/90 border border-border/5 rounded-tl-sm'
-            }`}>
-              {message.content}
-            </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6 scrollbar-hide">
+        {messages.length === 0 && (
+          <div className="text-sm text-text-secondary/40">
+            等待指令...<span className="studio-cursor">█</span>
+          </div>
+        )}
 
-            {message.code && (
-              <div className="w-full overflow-hidden rounded-[1.5rem] border border-border/10 bg-bg-secondary/30 group relative">
-                <pre className="p-8 font-mono text-[12px] leading-7 text-text-secondary/80 overflow-x-auto">
-                  {message.code}
-                </pre>
-                <div className="absolute top-4 right-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-[9px] uppercase tracking-widest text-text-secondary/40 font-mono italic">Code Chunk</span>
+        <div className="flex flex-col gap-4">
+          {messages.map((message) => {
+            const isUser = message.role === 'user'
+
+            if (isUser) {
+              return (
+                <div key={message.id} className="py-1">
+                  <span className="text-text-primary/80">
+                    <span className="font-mono text-text-secondary/45">$ </span>
+                    {message.text}
+                  </span>
+                  <span className="ml-3 text-[11px] text-text-secondary/35">{formatStudioTime(message.createdAt)}</span>
                 </div>
-              </div>
-            )}
+              )
+            }
 
-            {message.formula && (
-              <div className="px-6 py-3 rounded-2xl bg-accent-rgb/[0.03] border border-accent-rgb/5 text-xs tracking-[0.12em] text-accent-rgb/50 font-serif">
-                {message.formula}
+            const parts = message.role === 'assistant' ? message.parts : []
+            return (
+              <div key={message.id} className="py-1">
+                {parts.map((part, i) => {
+                  if (part.type === 'tool') {
+                    const status = part.state.status === 'error' ? '✗' : part.state.status === 'completed' ? '✓' : '…'
+                    const args = 'input' in part.state ? truncateArgs(part.state.input) : ''
+                    return (
+                      <div key={i} className="font-mono text-[13px] text-text-secondary/40">
+                        {'  → '}{part.tool}({args}) {status}
+                      </div>
+                    )
+                  }
+
+                  if (part.type === 'text' || part.type === 'reasoning') {
+                    const text = part.text.trim()
+                    if (!text) return null
+                    return (
+                      <div key={i} className="font-mono text-[13px] leading-7 text-text-secondary/70">
+                        {text.split('\n').map((line, j) => (
+                          <div key={j}>
+                            <span className="text-text-secondary/35">{'> '}</span>{line}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+
+                  return null
+                })}
+
+                {parts.filter((p) => p.type === 'text' || p.type === 'reasoning').every((p) => !p.text.trim()) && (
+                  <div className="font-mono text-[13px] text-text-secondary/35">{'> '}(无文本输出)</div>
+                )}
+
+                <span className="text-[11px] text-text-secondary/35">{formatStudioTime(message.createdAt)}</span>
               </div>
-            )}
-          </article>
-        ))}
+            )
+          })}
+
+          {messages.length > 0 && disabled && (
+            <div className="py-1 text-text-secondary/50">
+              <span className="studio-cursor">█</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      <footer className="px-[6%] py-10">
-        <div className="group relative flex items-center gap-4 bg-bg-secondary/30 border border-border/5 rounded-[2.5rem] px-8 py-5 transition-all hover:border-accent-rgb/20 focus-within:border-accent-rgb/30 focus-within:bg-bg-secondary/50 shadow-sm">
-          <div className="h-2.5 w-2.5 rounded-full bg-accent-rgb/20 transition-all group-focus-within:bg-accent-rgb group-focus-within:animate-pulse" />
+      <footer className="border-t border-border/10 px-8 py-5">
+        <div className="flex items-center">
+          <span className="mr-2 font-mono text-sm text-text-secondary/40">$</span>
           <input
-            placeholder={t('studio.inputPlaceholder')}
-            className="flex-1 bg-transparent text-base tracking-[0.02em] text-text-primary outline-none placeholder:text-text-secondary/30"
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void handleSubmit()
+              }
+            }}
+            placeholder={disabled ? '初始化中...' : '输入指令...'}
+            disabled={disabled}
+            className="flex-1 bg-transparent font-mono text-sm text-text-primary outline-none placeholder:text-text-secondary/30 disabled:cursor-not-allowed disabled:opacity-50"
           />
-          <div className="px-3 py-1.5 rounded-xl border border-border/10 text-[9px] uppercase tracking-[0.2em] text-text-secondary/30 group-focus-within:text-accent-rgb/40 group-focus-within:border-accent-rgb/10 transition-colors">
-            Enter
-          </div>
         </div>
+        <div className="mt-3 text-[11px] text-text-secondary/35">Enter 发送</div>
       </footer>
     </section>
-  );
+  )
+}
+
+function truncateArgs(input?: Record<string, unknown>) {
+  if (!input) return ''
+  const str = JSON.stringify(input)
+  return str.length > 60 ? `${str.slice(0, 57)}...` : str
 }

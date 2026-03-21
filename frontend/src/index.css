@@ -225,3 +225,28 @@ select option:checked {
 .studio-transition-sweep {
   display: none;
 }
+
+/* Studio 终端光标闪烁 */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.studio-cursor {
+  animation: blink-cursor 1s step-end infinite;
+  color: rgba(var(--text-secondary-rgb), 0.4);
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+/* Studio 终端基础样式 */
+.studio-terminal {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "LXGW WenKai Screen", monospace;
+}
+
+.studio-terminal ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.studio-terminal ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
