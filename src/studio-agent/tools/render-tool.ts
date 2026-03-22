@@ -5,6 +5,7 @@ import type { CustomApiConfig, OutputMode, VideoQuality } from '../../types'
 import { videoQueue } from '../../config/bull'
 import { storeJobStage } from '../../services/job-store'
 import { createWorkAndTask } from '../works/work-lifecycle'
+import { resolveJobTimeoutMs } from '../../utils/job-timeout'
 
 interface RenderToolInput {
   concept: string
@@ -39,16 +40,22 @@ async function executeRenderTool(
   const quality = input.quality ?? 'medium'
 
   await storeJobStage(jobId, 'rendering')
-  await videoQueue.add({
-    jobId,
-    concept: input.concept,
-    outputMode,
-    quality,
-    preGeneratedCode: input.code,
-    customApiConfig: input.customApiConfig,
-    timestamp: new Date().toISOString(),
-    workspaceDirectory: context.session.directory
-  })
+  await videoQueue.add(
+    {
+      jobId,
+      concept: input.concept,
+      outputMode,
+      quality,
+      preGeneratedCode: input.code,
+      customApiConfig: input.customApiConfig,
+      timestamp: new Date().toISOString(),
+      workspaceDirectory: context.session.directory
+    },
+    {
+      jobId,
+      timeout: resolveJobTimeoutMs()
+    }
+  )
 
   const lifecycleMetadata = {
     concept: input.concept,

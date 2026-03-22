@@ -2,6 +2,7 @@
 import Redis from 'ioredis'
 import { redisClient, REDIS_KEYS } from './redis'
 import { createLogger } from '../utils/logger'
+import { terminateManimProcess } from '../utils/manim-process-registry'
 
 const logger = createLogger('BullQueue')
 
@@ -106,7 +107,14 @@ videoQueue.on('completed', (job) => {
 })
 
 videoQueue.on('failed', (job, err) => {
+  const jobId = typeof job?.id === 'string' ? job.id : String(job?.id || '')
+  const terminated = jobId ? terminateManimProcess(jobId) : false
   logger.error(`Job ${job?.id} failed`, { message: err.message })
+  if (terminated) {
+    logger.warn(`Job ${job?.id} failure cleanup terminated active Manim process`, {
+      reason: err.message
+    })
+  }
 })
 
 videoQueue.on('progress', (job, progress) => {

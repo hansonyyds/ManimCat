@@ -23,6 +23,7 @@ import {
   videoConfigSchema
 } from './schemas/common'
 import { resolveCustomApiConfigByManimcatKey } from '../utils/manimcat-routing'
+import { resolveJobTimeoutMs } from '../utils/job-timeout'
 
 const router = express.Router()
 const logger = createLogger('ModifyRoute')
@@ -105,7 +106,10 @@ async function handleModifyRequest(req: express.Request, res: express.Response) 
       clientId: String(req.headers['x-client-id'] || '').trim() || undefined,
       timestamp: new Date().toISOString()
     },
-    { jobId }
+    {
+      jobId,
+      timeout: resolveJobTimeoutMs(videoConfig)
+    }
   )
 
   await recordUsageSubmission('modify', outputMode)
@@ -123,4 +127,3 @@ async function handleModifyRequest(req: express.Request, res: express.Response) 
 router.post('/modify', authMiddleware, asyncHandler(handleModifyRequest))
 
 export default router
-

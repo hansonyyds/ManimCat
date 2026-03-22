@@ -9,6 +9,7 @@ import { addBackgroundMusic } from '../../../audio/bgm-mixer'
 import { createRetryContext, executeCodeRetry } from '../../../services/code-retry/manager'
 import { ensureJobNotCancelled } from '../../../services/job-cancel'
 import { storeJobStage } from '../../../services/job-store'
+import { resolveJobTimeoutMs } from '../../../utils/job-timeout'
 import {
   createRenderFailureEvent,
   extractCodeSnippet,
@@ -59,7 +60,7 @@ export async function renderVideo(
   const { manimCode, usedAI, generationType, sceneDesign } = codeResult
 
   const frameRate = videoConfig?.frameRate || 15
-  const timeoutMs = (videoConfig?.timeout && videoConfig.timeout > 0 ? videoConfig.timeout : 1200) * 1000
+  const timeoutMs = resolveJobTimeoutMs(videoConfig)
 
   logger.info('Rendering video', { jobId, quality, usedAI, frameRate, timeoutMs })
 

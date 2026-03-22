@@ -26,6 +26,7 @@ import { sanitizeReferenceImages } from './helpers/reference-images'
 import { generateBodySchema } from './schemas/generate'
 import { resolveCustomApiConfigByManimcatKey } from '../utils/manimcat-routing'
 import type { ProblemFramingPlan } from '../types'
+import { resolveJobTimeoutMs } from '../utils/job-timeout'
 
 const router = express.Router()
 const logger = createLogger('GenerateRoute')
@@ -120,7 +121,8 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
       timestamp: new Date().toISOString()
     },
     {
-      jobId
+      jobId,
+      timeout: resolveJobTimeoutMs(videoConfig)
     }
   )
 

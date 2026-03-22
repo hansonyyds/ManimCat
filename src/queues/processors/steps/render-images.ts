@@ -8,6 +8,7 @@ import { findImageFile } from '../../../utils/file-utils'
 import { createRetryContext, executeCodeRetry } from '../../../services/code-retry/manager'
 import { ensureJobNotCancelled } from '../../../services/job-cancel'
 import { JobCancelledError } from '../../../utils/errors'
+import { resolveJobTimeoutMs } from '../../../utils/job-timeout'
 import {
   createRenderFailureEvent,
   extractCodeSnippet,
@@ -236,7 +237,7 @@ export async function renderImages(
 ): Promise<RenderResult> {
   const { manimCode, usedAI, generationType, sceneDesign } = codeResult
   const frameRate = videoConfig?.frameRate || 15
-  const timeoutMs = (videoConfig?.timeout && videoConfig.timeout > 0 ? videoConfig.timeout : 1200) * 1000
+  const timeoutMs = resolveJobTimeoutMs(videoConfig)
 
   const tempDir = path.join(os.tmpdir(), `manim-${jobId}`)
   const outputDir = path.join(process.cwd(), 'public', 'images')

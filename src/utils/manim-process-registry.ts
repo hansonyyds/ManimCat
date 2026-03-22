@@ -32,6 +32,21 @@ export function cancelManimProcess(jobId: string): boolean {
   return true
 }
 
+export function terminateManimProcess(jobId: string): boolean {
+  const entry = activeProcesses.get(jobId)
+  if (!entry) {
+    return false
+  }
+
+  try {
+    entry.proc.kill('SIGKILL')
+  } catch {
+    return false
+  }
+
+  return true
+}
+
 export function wasManimProcessCancelled(jobId: string): boolean {
   return activeProcesses.get(jobId)?.cancelled ?? false
 }
