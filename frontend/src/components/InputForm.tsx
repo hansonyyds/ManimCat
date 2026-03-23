@@ -7,6 +7,8 @@ import { FormToolbar } from './input-form/form-toolbar';
 import { ReferenceImageList } from './input-form/reference-image-list';
 import { useReferenceImages } from './input-form/use-reference-images';
 import { useI18n } from '../i18n';
+import { ImageInputModeModal } from './ImageInputModeModal';
+import { CanvasWorkspaceModal } from './canvas/CanvasWorkspaceModal';
 
 interface InputFormProps {
   concept: string;
@@ -30,6 +32,8 @@ export function InputForm({ concept, onConceptChange, onSecretStudioOpen, onSubm
   const [quality, setQuality] = useState<Quality>(loadSettings().video.quality);
   const [outputMode, setOutputMode] = useState<OutputMode>('video');
   const [isRecognizing, setIsRecognizing] = useState(false);
+  const [isImageModeOpen, setIsImageModeOpen] = useState(false);
+  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const studioKeywordTriggeredRef = useRef(false);
   const triggerTimerRef = useRef<number | null>(null);
@@ -40,6 +44,7 @@ export function InputForm({ concept, onConceptChange, onSecretStudioOpen, onSubm
     isDragging,
     fileInputRef,
     addImages,
+    appendImages,
     removeImage,
     handleDrop,
     handleDragOver,
@@ -92,6 +97,29 @@ export function InputForm({ concept, onConceptChange, onSecretStudioOpen, onSubm
     e.preventDefault();
     handleSubmit();
   };
+
+  const handleOpenImageMode = useCallback(() => {
+    setIsImageModeOpen(true);
+  }, []);
+
+  const handleCloseImageMode = useCallback(() => {
+    setIsImageModeOpen(false);
+  }, []);
+
+  const handleImportImages = useCallback(() => {
+    setIsImageModeOpen(false);
+    fileInputRef.current?.click();
+  }, [fileInputRef]);
+
+  const handleDrawMode = useCallback(() => {
+    setIsImageModeOpen(false);
+    setIsCanvasOpen(true);
+  }, []);
+
+  const handleCanvasComplete = useCallback((nextImages: ReferenceImage[]) => {
+    appendImages(nextImages);
+    setIsCanvasOpen(false);
+  }, [appendImages]);
 
   const handleConceptChange = (value: string) => {
     onConceptChange(value);
@@ -169,6 +197,7 @@ export function InputForm({ concept, onConceptChange, onSecretStudioOpen, onSubm
           fileInputRef={fileInputRef}
           onChangeQuality={setQuality}
           onChangeOutputMode={setOutputMode}
+          onOpenImageMode={handleOpenImageMode}
           onUploadFiles={addImages}
         />
 
@@ -202,6 +231,19 @@ export function InputForm({ concept, onConceptChange, onSecretStudioOpen, onSubm
           {t('form.shortcutPrefix')} <kbd className="px-1.5 py-0.5 bg-bg-secondary/50 rounded text-[10px]">Shift</kbd> + <kbd className="px-1.5 py-0.5 bg-bg-secondary/50 rounded text-[10px]">Enter</kbd> {t('form.shortcutSuffix')}
         </p>
       </form>
+
+      <ImageInputModeModal
+        isOpen={isImageModeOpen}
+        onClose={handleCloseImageMode}
+        onImport={handleImportImages}
+        onDraw={handleDrawMode}
+      />
+
+      <CanvasWorkspaceModal
+        isOpen={isCanvasOpen}
+        onClose={() => setIsCanvasOpen(false)}
+        onComplete={handleCanvasComplete}
+      />
     </div>
   );
 }

@@ -305,3 +305,33 @@ select option:checked {
   color: rgba(var(--accent-rgb), 0.62);
   animation: studio-type-caret-blink 0.9s step-end infinite;
 }
+
+.canvas-transition-grid {
+  background-image:
+    linear-gradient(rgba(var(--border-rgb), 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--border-rgb), 0.05) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
+}
+
+.canvas-paper-grid {
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 62px,
+      rgba(80, 80, 80, 0.12) 62px,
+      rgba(80, 80, 80, 0.12) 63px,
+      transparent 63px,
+      transparent 124px
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent 70px,
+      rgba(100, 100, 100, 0.08) 70px,
+      rgba(100, 100, 100, 0.08) 71px,
+      transparent 71px,
+      transparent 142px
+    );
+}

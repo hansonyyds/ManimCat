@@ -10,6 +10,7 @@ interface UseReferenceImagesResult {
   isDragging: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   addImages: (files: FileList | File[]) => Promise<void>;
+  appendImages: (nextImages: ReferenceImage[]) => void;
   removeImage: (index: number) => void;
   handleDrop: (e: React.DragEvent) => Promise<void>;
   handleDragOver: (e: React.DragEvent) => void;
@@ -68,6 +69,14 @@ export function useReferenceImages(): UseReferenceImagesResult {
 
   const removeImage = useCallback((index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
+    setImageError(null);
+  }, []);
+
+  const appendImages = useCallback((nextImages: ReferenceImage[]) => {
+    if (nextImages.length === 0) {
+      return;
+    }
+    setImages((prev) => [...prev, ...nextImages].slice(0, MAX_IMAGES));
     setImageError(null);
   }, []);
 
@@ -133,6 +142,7 @@ export function useReferenceImages(): UseReferenceImagesResult {
     isDragging,
     fileInputRef,
     addImages,
+    appendImages,
     removeImage,
     handleDrop,
     handleDragOver,
