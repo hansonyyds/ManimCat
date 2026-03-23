@@ -131,38 +131,42 @@ export function StudioCommandPanel({
   }, [animatedAssistantText, latestAssistantText])
 
   return (
-    <section className="studio-terminal flex h-full min-h-0 min-w-0 flex-1 flex-col bg-bg-primary/30 shadow-[inset_0_0_40px_rgba(0,0,0,0.02)]">
-      <header className="shrink-0 flex items-center justify-between gap-4 border-b border-border/10 px-8 py-4">
-        <div className="text-base font-medium tracking-[-0.02em] text-text-primary/86">
-          {session?.title ?? 'Studio'}
+    <section className="studio-terminal flex h-full min-h-0 min-w-0 flex-1 flex-col bg-bg-primary/20 backdrop-blur-md">
+      <header className="shrink-0 flex items-center justify-between gap-4 border-b border-border/5 px-8 py-5">
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-2 rounded-full bg-accent-rgb/20 animate-pulse" />
+          <div className="text-[13px] font-bold uppercase tracking-[0.2em] text-text-primary/70">
+            {session?.title ?? 'Studio'}
+          </div>
         </div>
         <button
           type="button"
           onClick={onExit}
-          className="px-4 py-2 text-sm text-text-secondary/60 transition hover:text-rose-500/80"
+          className="rounded-full border border-border/10 px-4 py-1.5 text-[11px] uppercase tracking-widest text-text-secondary/50 transition hover:bg-rose-500/10 hover:text-rose-500/80"
         >
-          退出
+          Close
         </button>
       </header>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-8 py-10">
         {messages.length === 0 && (
-          <div className="text-base leading-7 text-text-secondary/55">
-            等待指令...<span className="studio-cursor">█</span>
+          <div className="flex flex-col items-center justify-center h-full text-center opacity-30">
+            <div className="mb-4 text-3xl">🐾</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.4em]">Ready for commands</div>
           </div>
         )}
 
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col space-y-12">
           {messages.map((message) => {
             if (message.role === 'user') {
               return (
-                <UserMessageBubble key={message.id} message={message} />
+                <UserMessageItem key={message.id} message={message} />
               )
             }
 
             const isStreamingTarget = streamIntoLastAssistant && lastMessage?.id === message.id
             return (
-              <AssistantMessageBubble
+              <AssistantMessageItem
                 key={message.id}
                 message={message}
                 isStreamingTarget={isStreamingTarget}
@@ -173,37 +177,35 @@ export function StudioCommandPanel({
           })}
 
           {(isBusy || latestAssistantText || animatedAssistantText) && !streamIntoLastAssistant && (
-            <div className="flex justify-start py-1">
-              <div className="max-w-[90%] rounded-[22px] rounded-bl-md bg-bg-secondary/55 px-5 py-4 text-text-primary ring-1 ring-border/10">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-text-secondary/55">
-                  Model
-                </div>
-
-                {animatedAssistantText ? (
-                  <div className="text-[15px] leading-7 text-text-primary whitespace-pre-wrap break-words">
-                    {animatedAssistantText}
-                    <span className="studio-type-caret">█</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 text-text-secondary/60">
-                    <span className="text-[15px]">正在思考</span>
-                    <span className="studio-thinking-dots" aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                    </span>
-                  </div>
-                )}
+            <div className="group animate-fade-in">
+               <div className="mb-4 flex items-center gap-3">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-accent-rgb/60">Agent</span>
+                <div className="h-px flex-1 bg-border/5" />
               </div>
+              {animatedAssistantText ? (
+                <div className="pl-1 text-[15px] leading-8 text-text-primary/90 whitespace-pre-wrap break-words border-l border-accent-rgb/10 ml-1">
+                  {animatedAssistantText}
+                  <span className="studio-type-caret">█</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4 pl-1 ml-1 border-l border-accent-rgb/10">
+                  <span className="text-[13px] font-mono tracking-widest text-text-secondary/40 italic">Thinking</span>
+                  <span className="studio-thinking-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </div>
+              )}
             </div>
           )}
           <div ref={endRef} />
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-border/10 px-8 py-5">
-        <div className="flex items-center">
-          <span className="mr-2 font-mono text-base text-text-secondary/55">$</span>
+      <footer className="shrink-0 border-t border-border/5 bg-bg-primary/30 px-8 py-6 backdrop-blur-md">
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-sm text-text-secondary/40 tracking-widest">{'>'}</span>
           <input
             ref={inputRef}
             type="text"
@@ -215,35 +217,40 @@ export function StudioCommandPanel({
                 void handleSubmit()
               }
             }}
-            placeholder={disabled ? '初始化中...' : '输入指令...'}
+            placeholder={disabled ? 'Initializing...' : 'Send instruction to ManimCat...'}
             disabled={disabled}
-            className="flex-1 bg-transparent text-[15px] leading-7 text-text-primary outline-none placeholder:text-text-secondary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 bg-transparent text-[14px] font-medium leading-relaxed text-text-primary outline-none placeholder:text-text-secondary/25 disabled:cursor-not-allowed disabled:opacity-50"
           />
+          <div className="flex items-center gap-2 opacity-30">
+             <div className="font-mono text-[9px] uppercase tracking-widest text-text-secondary">Enter to send</div>
+          </div>
         </div>
-        <div className="mt-3 text-xs text-text-secondary/45">Enter 发送</div>
       </footer>
     </section>
   )
 }
 
-const UserMessageBubble = memo(function UserMessageBubble({
+const UserMessageItem = memo(function UserMessageItem({
   message,
 }: {
   message: Extract<StudioMessage, { role: 'user' }>
 }) {
   return (
-    <div className="animate-fade-in-soft flex justify-end py-1">
-      <div className="max-w-[88%] rounded-[22px] rounded-br-md bg-text-primary/6 px-5 py-3 text-[15px] leading-7 text-text-primary ring-1 ring-border/10">
-        <div className="mb-1 text-[10px] uppercase tracking-[0.24em] text-text-secondary/55">
-          User
+    <div className="animate-fade-in-soft group">
+      <div className="rounded-2xl bg-bg-secondary/20 px-6 py-5 transition-colors group-hover:bg-bg-secondary/40">
+        <div className="mb-4 flex items-center gap-3">
+          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.3em] text-text-secondary/35">Input / User</span>
+          <div className="h-px flex-1 bg-border/5" />
         </div>
-        <div className="whitespace-pre-wrap break-words">{message.text}</div>
+        <div className="text-[14px] font-medium leading-7 text-text-primary/80">
+          <div className="whitespace-pre-wrap break-words">{message.text}</div>
+        </div>
       </div>
     </div>
   )
 })
 
-const AssistantMessageBubble = memo(function AssistantMessageBubble({
+const AssistantMessageItem = memo(function AssistantMessageItem({
   message,
   isStreamingTarget,
   streamedText,
@@ -259,76 +266,71 @@ const AssistantMessageBubble = memo(function AssistantMessageBubble({
   const hasStreamedText = streamedText.length > 0
 
   return (
-    <div className={`${isStreamingTarget ? '' : 'animate-fade-in-soft '}flex justify-start py-1`}>
-      <div className="max-w-[90%] rounded-[22px] rounded-bl-md bg-bg-secondary/55 px-5 py-4 text-text-primary ring-1 ring-border/10">
-        <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-text-secondary/55">
-          Model
+    <div className={`${isStreamingTarget ? '' : 'animate-fade-in-soft '}group`}>
+      <div className="rounded-2xl bg-bg-tertiary/40 px-6 py-6 transition-colors group-hover:bg-bg-tertiary/60">
+        <div className="mb-5 flex items-center gap-3">
+          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.3em] text-text-primary/45">Output / Agent</span>
+          <div className="h-px flex-1 bg-border/10" />
         </div>
-        {toolParts.map((part, i) => {
-          const status = part.state.status === 'error' ? '✗' : part.state.status === 'completed' ? '✓' : '…'
-          const args = 'input' in part.state ? truncateArgs(part.state.input) : ''
-          return (
-            <div key={i} className={`font-mono text-[13px] leading-6 ${toolCallTone(part.state.status)}`}>
-              {'→ '}{part.tool}({args}) <span className={toolCallStatusTone(part.state.status)}>{status}</span>
+        
+        <div className="space-y-6">
+          {toolParts.length > 0 && (
+            <div className="mb-4 space-y-2.5">
+              {toolParts.map((part, i) => {
+                const status = part.state.status === 'error' ? '!' : part.state.status === 'completed' ? '->' : '...'
+                const args = 'input' in part.state ? truncateArgs(part.state.input) : ''
+                return (
+                  <div key={i} className={`font-mono text-[10px] tracking-tight ${neutralToolTone(part.state.status)} flex items-center gap-3`}>
+                    <span className="flex h-4 w-4 items-center justify-center bg-text-primary/5 font-bold">{status}</span>
+                    <span className="font-bold uppercase tracking-wider">{part.tool}</span>
+                    <span className="truncate opacity-30">({args})</span>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
+          )}
 
-        {isStreamingTarget && hasStreamedText ? (
-          <div className="text-[15px] leading-7 text-text-primary whitespace-pre-wrap break-words">
-            {streamedText}
-            {showCaret && <span className="studio-type-caret">█</span>}
-          </div>
-        ) : textParts.map((part, i) => {
-          const text = part.text.trim()
-          if (!text) return null
-          return (
-            <div key={`text-${i}`} className="text-[15px] leading-7 text-text-primary whitespace-pre-wrap">
-              {text.split('\n').map((line: string, j: number) => (
-                <div key={j}>
-                  <span>{line}</span>
-                </div>
-              ))}
+          {isStreamingTarget && hasStreamedText ? (
+            <div className="text-[15px] font-medium leading-8 text-text-primary/90 whitespace-pre-wrap break-words">
+              {streamedText}
+              {showCaret && <span className="studio-type-caret opacity-30">█</span>}
             </div>
-          )
-        })}
+          ) : textParts.map((part, i) => {
+            const text = part.text.trim()
+            if (!text) return null
+            return (
+              <div key={`text-${i}`} className="text-[15px] font-medium leading-8 text-text-primary/90 whitespace-pre-wrap">
+                {text}
+              </div>
+            )
+          })}
 
-        {!isStreamingTarget && textParts.every((part) => !part.text.trim()) && (
-          <div className="text-[15px] leading-7 text-text-secondary/60">
-            <span>(无文本输出)</span>
-          </div>
-        )}
+          {!isStreamingTarget && textParts.every((part) => !part.text.trim()) && (
+            <div className="text-[13px] italic text-text-secondary/30">
+              (No response output)
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 })
 
+function neutralToolTone(status: string) {
+  switch (status) {
+    case 'error':
+      return 'text-rose-500/70'
+    case 'completed':
+      return 'text-text-primary/40'
+    default:
+      return 'text-amber-500/70'
+  }
+}
+
 function truncateArgs(input?: Record<string, unknown>) {
   if (!input) return ''
   const str = JSON.stringify(input)
   return str.length > 60 ? `${str.slice(0, 57)}...` : str
-}
-
-function toolCallTone(status: string) {
-  switch (status) {
-    case 'error':
-      return 'text-rose-600 dark:text-rose-300'
-    case 'completed':
-      return 'text-cyan-700 dark:text-cyan-300'
-    default:
-      return 'text-amber-700 dark:text-amber-300'
-  }
-}
-
-function toolCallStatusTone(status: string) {
-  switch (status) {
-    case 'error':
-      return 'text-rose-500 dark:text-rose-300'
-    case 'completed':
-      return 'text-emerald-600 dark:text-emerald-300'
-    default:
-      return 'text-amber-600 dark:text-amber-300'
-  }
 }
 
 function nextTypeDelay(target: string, currentLength: number, streamRate: number) {

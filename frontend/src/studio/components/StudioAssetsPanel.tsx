@@ -48,62 +48,65 @@ export function StudioAssetsPanel({
         </div>
       </div>
 
-      <section className="shrink-0 overflow-hidden rounded-xl border border-border/10 bg-bg-secondary/30">
-        <div className="aspect-video bg-black/[0.04]">
+      <section className="shrink-0 overflow-hidden">
+        <div className="aspect-video">
           <PreviewSurface attachment={previewAttachment} result={result} />
         </div>
-        <div className="border-t border-border/10 px-5 py-4">
-          <div className="text-sm leading-6 text-text-primary/82">{result?.summary ?? '当前 work 还没有可预览的结果。'}</div>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-text-secondary/55">
-            <span>{result ? translateResultKind(result.kind) : '未产出'}</span>
-            <span>·</span>
-            <span>{result ? formatStudioTime(result.createdAt) : '等待中'}</span>
+        {(previewAttachment || result?.summary) && (
+          <div className="px-1 py-4">
+            <div className="text-[13px] leading-6 text-text-primary/70">{result?.summary}</div>
+            <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-widest text-text-secondary/40">
+              <span>{result ? translateResultKind(result.kind) : ''}</span>
+              {result && <span>·</span>}
+              <span>{result ? formatStudioTime(result.createdAt) : ''}</span>
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 px-1">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.28em] text-text-secondary/45">作品列表</div>
-            <div className="mt-1 text-sm text-text-secondary/65">切换要预览的 work</div>
+            <div className="text-[9px] font-bold uppercase tracking-[0.3em] text-text-secondary/35">Library / Works</div>
           </div>
-          <div className="rounded-full bg-bg-secondary/50 px-3 py-1 text-xs text-text-secondary/65">{works.length}</div>
+          <div className="font-mono text-[10px] text-text-secondary/40">{works.length.toString().padStart(2, '0')}</div>
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+        <div className="mt-6 min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
           {works.map((entry) => {
-            const { work: item, latestTask, result: itemResult } = entry
+            const { work: item, latestTask } = entry
             const selected = item.id === selectedWorkId
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onSelectWork(item.id)}
-                className={`w-full rounded-xl px-4 py-3 text-left transition ${
+                className={`w-full rounded-xl px-5 py-4 text-left transition-all duration-300 ${
                   selected
-                    ? 'border-l-2 border-l-accent-rgb/60 bg-bg-secondary/30'
-                    : 'border-l-2 border-l-transparent hover:bg-bg-secondary/20'
+                    ? 'bg-bg-secondary/40 shadow-sm'
+                    : 'hover:bg-bg-secondary/20'
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-text-primary/84">{item.title}</div>
-                    <div className="mt-1 text-[10px] uppercase tracking-[0.22em] text-text-secondary/45">{translateWorkType(item.type)}</div>
+                    <div className={`truncate text-[13px] font-bold transition-colors ${selected ? 'text-text-primary' : 'text-text-primary/60'}`}>
+                      {item.title}
+                    </div>
+                    <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-text-secondary/30">{translateWorkType(item.type)}</div>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${studioStatusBadge(item.status)}`}>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter ${studioStatusBadge(item.status)}`}>
                     {translateWorkStatus(item.status)}
                   </span>
                 </div>
-                <div className="mt-2 space-y-1 text-[11px] leading-5 text-text-secondary/58">
-                  <div>{latestTask ? `Task: ${truncateStudioText(latestTask.title, 42)}` : 'Task: waiting'}</div>
-                  <div className="text-text-primary/64">{itemResult ? truncateStudioText(itemResult.summary, 54) : 'Result: pending'}</div>
+                <div className="mt-3 space-y-1.5 text-[11px] leading-5 text-text-secondary/50">
+                  <div className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-current opacity-30" />
+                    <span className="truncate">{latestTask ? truncateStudioText(latestTask.title, 42) : 'waiting...'}</span>
+                  </div>
                 </div>
               </button>
             )
           })}
-
-          {works.length === 0 && <div className="text-sm text-text-secondary/55">先在中间发出指令，左侧就会出现可预览的 work。</div>}
         </div>
       </section>
     </aside>
@@ -118,26 +121,23 @@ function PreviewSurface({
   result: StudioWorkResult | null
 }) {
   if (attachment?.mimeType?.startsWith('video/') || isVideoPath(attachment?.path)) {
-    return <video src={attachment?.path} controls className="h-full w-full object-cover" />
+    return <video src={attachment?.path} controls className="h-full w-full object-contain" />
   }
 
   if (attachment?.mimeType?.startsWith('image/') || isImagePath(attachment?.path)) {
-    return <img src={attachment?.path} alt={attachment?.name ?? 'preview'} className="h-full w-full object-cover" />
+    return <img src={attachment?.path} alt={attachment?.name ?? 'preview'} className="h-full w-full object-contain" />
   }
 
   if (result?.kind === 'failure-report') {
     return (
-      <div className="flex h-full items-center justify-center px-8 text-center text-sm leading-7 text-rose-500/75">
-        当前 work 以失败报告结束。右侧会显示任务与失败摘要。
+      <div className="flex h-full items-center justify-center opacity-30">
+        <div className="text-[10px] font-bold uppercase tracking-[0.4em] text-rose-500/70">Render Failed</div>
       </div>
     )
   }
 
-  return (
-    <div className="flex h-full items-center justify-center px-8 text-center text-sm leading-7 text-text-secondary/55">
-      暂无可视化预览。渲染产物、图片或视频出现后会优先显示在这里。
-    </div>
-  )
+  // 无产出时保持空白
+  return null
 }
 
 function isPreviewAttachment(attachment: { path: string; mimeType?: string } | undefined) {

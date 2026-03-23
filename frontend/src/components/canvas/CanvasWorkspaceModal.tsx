@@ -286,10 +286,11 @@ export function CanvasWorkspaceModal({ isOpen, onClose, onComplete }: CanvasWork
   return (
     <div className="fixed inset-0 z-[140] overflow-hidden bg-bg-primary animate-classic-entrance">
       <div className="absolute inset-0 bg-bg-primary/95" />
-      <div className="absolute inset-0 canvas-transition-grid opacity-60" />
+      <div className="absolute inset-0 canvas-transition-grid opacity-40" />
 
       <div className="relative flex h-full w-full">
-        <div className="pointer-events-none absolute left-6 top-1/2 z-10 -translate-y-1/2">
+        {/* 左侧工具栏容器 */}
+        <div className="pointer-events-none absolute left-8 top-1/2 z-10 -translate-y-1/2">
           <CanvasToolbar
             tool={tool}
             isToolbarCollapsed={isToolbarCollapsed}
@@ -307,40 +308,43 @@ export function CanvasWorkspaceModal({ isOpen, onClose, onComplete }: CanvasWork
           />
         </div>
 
-        <div className="pointer-events-none absolute left-6 top-6 z-10">
+        {/* 顶部返回按钮 */}
+        <div className="pointer-events-none absolute left-8 top-8 z-10">
           <button
             type="button"
             onClick={() => (isDirty ? setIsDiscardConfirmOpen(true) : onClose())}
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-border/5 bg-bg-secondary/82 px-4 py-3 text-sm text-text-secondary shadow-lg backdrop-blur-md transition-all hover:text-text-primary hover:bg-bg-secondary"
+            className="pointer-events-auto inline-flex items-center gap-2.5 rounded-full border border-border/5 bg-bg-secondary/80 px-5 py-3 text-sm font-medium text-text-secondary shadow-xl backdrop-blur-xl transition-all hover:text-text-primary hover:bg-bg-secondary"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
             </svg>
             {t('canvas.back')}
           </button>
         </div>
 
-        <div className="pointer-events-none absolute right-6 top-6 z-10">
+        {/* 顶部确认按钮 */}
+        <div className="pointer-events-none absolute right-8 top-8 z-10">
           <button
             type="button"
             onClick={handlePreparePreview}
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-xl bg-text-primary px-5 py-3 text-sm text-bg-primary shadow-lg transition-all hover:opacity-92"
+            className="pointer-events-auto inline-flex items-center gap-2.5 rounded-full bg-accent px-6 py-3.5 text-sm font-bold text-white shadow-2xl shadow-accent/20 transition-all hover:scale-[1.02] hover:bg-accent-hover active:scale-[0.98]"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
             {t('canvas.confirm')}
           </button>
         </div>
 
-        <div className="flex h-full w-full items-center justify-center px-20 pb-56 pt-20">
-          <div className="relative h-full w-full max-w-[1460px] border border-border/5 bg-[#fffefb] shadow-[0_28px_100px_rgba(0,0,0,0.08)]">
-            <div className="pointer-events-none absolute inset-0 canvas-paper-grid" />
+        {/* 画布主容器 */}
+        <div className="flex h-full w-full items-center justify-center px-28 pb-32 pt-24">
+          <div className="relative h-full w-full max-w-[1400px] overflow-hidden rounded-[32px] border border-border/5 bg-white shadow-[0_48px_120px_-32px_rgba(0,0,0,0.12)] transition-transform duration-700">
+            <div className="pointer-events-none absolute inset-0 canvas-paper-grid opacity-60" />
             <canvas
               ref={canvasRef}
               width={CANVAS_EXPORT_WIDTH}
               height={CANVAS_EXPORT_HEIGHT}
-              className="relative z-[1] h-full w-full touch-none"
+              className="relative z-[1] h-full w-full touch-none cursor-crosshair"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
@@ -349,10 +353,10 @@ export function CanvasWorkspaceModal({ isOpen, onClose, onComplete }: CanvasWork
           </div>
         </div>
 
+        {/* 底部预览条 */}
         <CanvasPreviewStrip
           pages={pages}
           activePageId={activePageId}
-          activePageIndex={activePageIndex}
           selectedStrokeId={selectedStrokeId}
           onSelectPage={(pageId) => {
             setActivePageId(pageId);
@@ -363,27 +367,43 @@ export function CanvasWorkspaceModal({ isOpen, onClose, onComplete }: CanvasWork
         />
       </div>
 
+      {/* 放弃确认弹窗 */}
       {isDiscardConfirmOpen && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/35 backdrop-blur-sm" onClick={() => setIsDiscardConfirmOpen(false)} />
-          <div className="relative w-full max-w-sm rounded-[2rem] border border-border/5 bg-bg-secondary p-6 shadow-2xl">
-            <h3 className="text-lg font-medium text-text-primary">{t('canvas.discardTitle')}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-text-secondary/80">{t('canvas.discardDescription')}</p>
-            <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="absolute inset-0 bg-bg-primary/60 backdrop-blur-md animate-overlay-wash-in" onClick={() => setIsDiscardConfirmOpen(false)} />
+          <div className="relative w-full max-w-lg rounded-[2.5rem] border border-border/5 bg-bg-secondary p-10 shadow-2xl animate-fade-in-soft">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-accent-rgb/40 animate-pulse" />
+                <h2 className="text-xl font-medium text-text-primary tracking-tight">{t('canvas.discardTitle')}</h2>
+              </div>
               <button
-                type="button"
                 onClick={() => setIsDiscardConfirmOpen(false)}
-                className="rounded-2xl bg-bg-primary/55 px-4 py-3 text-sm text-text-secondary transition-all hover:text-text-primary"
+                className="p-2.5 text-text-secondary/50 hover:text-text-primary hover:bg-bg-primary/50 rounded-2xl transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-text-secondary text-[15px] mb-10 leading-relaxed font-light">
+              {t('canvas.discardDescription')}
+            </p>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => setIsDiscardConfirmOpen(false)}
+                className="flex-1 py-4 text-sm text-text-secondary hover:text-text-primary bg-bg-primary/50 hover:bg-bg-tertiary rounded-2xl transition-all active:scale-95"
               >
                 {t('common.cancel')}
               </button>
               <button
-                type="button"
                 onClick={() => {
                   setIsDiscardConfirmOpen(false);
                   onClose();
                 }}
-                className="rounded-2xl bg-text-primary px-4 py-3 text-sm text-bg-primary transition-all hover:opacity-90"
+                className="flex-1 py-4 text-sm text-bg-primary bg-text-primary hover:opacity-90 rounded-2xl transition-all active:scale-95 shadow-lg shadow-black/10 font-medium"
               >
                 {t('common.confirm')}
               </button>
@@ -392,44 +412,66 @@ export function CanvasWorkspaceModal({ isOpen, onClose, onComplete }: CanvasWork
         </div>
       )}
 
+      {/* 导出预览弹窗 */}
       {isPreviewConfirmOpen && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/35 backdrop-blur-sm" onClick={() => !isExporting && setIsPreviewConfirmOpen(false)} />
-          <div className="relative flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2.25rem] border border-border/5 bg-bg-secondary shadow-2xl">
-            <div className="border-b border-border/5 px-6 py-5">
-              <h3 className="text-lg font-medium text-text-primary">{t('canvas.previewConfirmTitle')}</h3>
-              <p className="mt-1 text-sm text-text-secondary/75">{t('canvas.previewConfirmDescription')}</p>
+          <div className="absolute inset-0 bg-bg-primary/60 backdrop-blur-md animate-overlay-wash-in" onClick={() => !isExporting && setIsPreviewConfirmOpen(false)} />
+          <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2.5rem] border border-border/5 bg-bg-secondary p-10 shadow-2xl animate-fade-in-soft">
+            <div className="flex items-center justify-between mb-8 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-accent-rgb/40 animate-pulse" />
+                <h2 className="text-xl font-medium text-text-primary tracking-tight">{t('canvas.previewConfirmTitle')}</h2>
+              </div>
+              <button
+                onClick={() => !isExporting && setIsPreviewConfirmOpen(false)}
+                className="p-2.5 text-text-secondary/50 hover:text-text-primary hover:bg-bg-primary/50 rounded-2xl transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <div className="grid gap-4 overflow-y-auto px-6 py-6 md:grid-cols-2 xl:grid-cols-3">
+
+            <p className="text-text-secondary text-[15px] mb-8 leading-relaxed font-light shrink-0">
+              {t('canvas.previewConfirmDescription')}
+            </p>
+
+            <div className="grid gap-6 overflow-y-auto mb-10 px-1 py-2 md:grid-cols-2 lg:grid-cols-3">
               {previewImages.map((image, index) => (
-                <div key={image.id} className="overflow-hidden rounded-[1.5rem] border border-border/5 bg-bg-primary/50">
-                  <img src={image.dataUrl} alt={t('canvas.previewImageAlt', { index: index + 1 })} className="aspect-[16/10] w-full object-cover" />
-                  <div className="flex items-center justify-between px-4 py-3 text-sm text-text-secondary">
+                <div key={image.id} className="group overflow-hidden rounded-[1.75rem] border border-border/5 bg-bg-primary/50 transition-all hover:bg-bg-primary/80">
+                  <div className="aspect-[16/10] overflow-hidden">
+                    <img src={image.dataUrl} alt={t('canvas.previewImageAlt', { index: index + 1 })} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
+                  </div>
+                  <div className="flex items-center justify-between px-5 py-4 text-xs font-bold uppercase tracking-widest text-text-secondary/35">
                     <span>{t('canvas.previewItem', { index: index + 1 })}</span>
-                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <span className="font-mono">{String(index + 1).padStart(2, '0')}</span>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="border-t border-border/5 px-6 py-4">
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsPreviewConfirmOpen(false)}
-                  disabled={isExporting}
-                  className="rounded-2xl bg-bg-primary/55 px-5 py-3 text-sm text-text-secondary transition-all hover:text-text-primary disabled:opacity-50"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmPreview}
-                  disabled={isExporting}
-                  className="rounded-2xl bg-text-primary px-5 py-3 text-sm text-bg-primary transition-all hover:opacity-90 disabled:opacity-50"
-                >
-                  {isExporting ? t('canvas.uploading') : t('common.confirm')}
-                </button>
-              </div>
+
+            <div className="flex justify-end gap-4 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsPreviewConfirmOpen(false)}
+                disabled={isExporting}
+                className="px-8 py-4 text-sm text-text-secondary hover:text-text-primary bg-bg-primary/50 hover:bg-bg-tertiary rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPreview}
+                disabled={isExporting}
+                className="px-10 py-4 text-sm text-bg-primary bg-text-primary hover:bg-accent-hover-rgb rounded-2xl transition-all active:scale-95 disabled:opacity-50 shadow-lg font-medium"
+              >
+                {isExporting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    {t('canvas.uploading')}
+                  </div>
+                ) : t('common.confirm')}
+              </button>
             </div>
           </div>
         </div>

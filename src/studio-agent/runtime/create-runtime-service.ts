@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { createStudioSession } from '../domain/factories'
 import type {
   StudioEventBus,
@@ -60,6 +61,7 @@ export interface StudioRuntimeService {
   createSession: (sessionInput: {
     projectId: string
     directory: string
+    useDedicatedWorkspace?: boolean
     title?: string
     studioKind?: StudioKind
     agentType?: StudioSession['agentType']
@@ -128,27 +130,35 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
     eventBus,
     async createSession(sessionInput) {
       const permissionLevel = sessionInput.permissionLevel ?? 'L2'
-      const normalizedDirectory = input.workspaceProvider.normalizeDirectory(sessionInput.directory)
       const studioKind = sessionInput.studioKind ?? 'manim'
-
-      return input.persistence.sessionStore.create(
-        createStudioSession({
-          projectId: sessionInput.projectId,
-          workspaceId: sessionInput.workspaceId,
-          studioKind,
-          agentType: sessionInput.agentType ?? 'builder',
-          title: sessionInput.title ?? getDefaultSessionTitle(studioKind),
-          directory: normalizedDirectory,
-          permissionLevel,
-          permissionRules: defaultRulesForLevel(permissionLevel),
-          metadata: createStudioSessionMetadata({
-            existing: { studioKind },
-            agentConfig: {
-              toolChoice: sessionInput.toolChoice
-            }
-          })
+      const normalizedDirectory = input.workspaceProvider.normalizeDirectory(sessionInput.directory)
+      const session = createStudioSession({
+        projectId: sessionInput.projectId,
+        workspaceId: sessionInput.workspaceId,
+        studioKind,
+        agentType: sessionInput.agentType ?? 'builder',
+        title: sessionInput.title ?? getDefaultSessionTitle(studioKind),
+        directory: normalizedDirectory,
+        permissionLevel,
+        permissionRules: defaultRulesForLevel(permissionLevel),
+        metadata: createStudioSessionMetadata({
+          existing: { studioKind },
+          agentConfig: {
+            toolChoice: sessionInput.toolChoice
+          }
         })
-      )
+      })
+
+      if (sessionInput.useDedicatedWorkspace !== false) {
+        session.directory = input.workspaceProvider.normalizeDirectory(
+          `${studioKind}-studio/${session.id}`,
+          { session }
+        )
+      }
+
+      fs.mkdirSync(session.directory, { recursive: true })
+
+      return input.persistence.sessionStore.create(session)
     },
     getSession(sessionId: string) {
       return input.persistence.sessionStore.getById(sessionId)
@@ -227,3 +237,4 @@ async function collectWorkResults(works: StudioWork[], persistence: StudioPersis
 function getDefaultSessionTitle(studioKind: StudioKind): string {
   return studioKind === 'plot' ? 'Plot Studio Session' : 'Manim Studio Session'
 }
+

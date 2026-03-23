@@ -1,62 +1,63 @@
 import { renderPageToDataUrl } from './canvas-render';
+import type { I18nContextValue } from '../../i18n/context';
 import type { CanvasPage } from './types';
 
 interface CanvasPreviewStripProps {
   pages: CanvasPage[];
   activePageId: string;
-  activePageIndex: number;
   selectedStrokeId: string | null;
   onSelectPage: (pageId: string) => void;
   onAddPage: () => void;
-  t: (key: string, params?: Record<string, string | number>) => string;
+  t: I18nContextValue['t'];
 }
 
 export function CanvasPreviewStrip({
   pages,
   activePageId,
-  activePageIndex,
   selectedStrokeId,
   onSelectPage,
   onAddPage,
-  t,
 }: CanvasPreviewStripProps) {
   return (
-    <div className="pointer-events-none absolute bottom-10 left-1/2 z-10 w-[min(1080px,calc(100vw-160px))] -translate-x-1/2">
-      <div className="pointer-events-auto rounded-[18px] border border-border/5 bg-bg-secondary/80 px-4 py-3 shadow-2xl backdrop-blur-md">
-        <div className="mb-2 flex items-center justify-between">
-          <div className="text-[11px] uppercase tracking-[0.24em] text-text-secondary/60">
-            {t('canvas.previewLabel')}
-          </div>
-          <div className="text-sm text-text-secondary/70">
-            {t('canvas.pageStatus', { current: activePageIndex + 1, total: pages.length })}
-          </div>
-        </div>
+    <div className="pointer-events-none fixed bottom-7 left-1/2 z-10 -translate-x-1/2">
+      <div className="pointer-events-auto flex items-center gap-4 rounded-full bg-bg-secondary/40 px-3 py-2.5 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.1)] backdrop-blur-2xl transition-all hover:bg-bg-secondary/50">
+        <div className="flex items-center gap-2.5 px-1">
+          {pages.map((page) => {
+            const isSelected = page.id === activePageId;
+            return (
+              <div key={page.id} className="relative flex flex-col items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onSelectPage(page.id)}
+                  className={`group relative h-11 w-20 overflow-hidden rounded-[14px] transition-all duration-500 ${
+                    isSelected
+                      ? 'scale-[0.95] bg-bg-secondary ring-2 ring-accent/20'
+                      : 'opacity-40 hover:opacity-100 hover:scale-[0.98]'
+                  }`}
+                >
+                  <img 
+                    src={renderPageToDataUrl(page, isSelected ? selectedStrokeId : null)} 
+                    alt="" 
+                    className="h-full w-full object-cover" 
+                  />
+                  <div className={`absolute inset-0 bg-white/5 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                </button>
+                {/* 极简指示点 */}
+                <div className={`h-1 rounded-full bg-accent transition-all duration-500 ${isSelected ? 'w-4 opacity-60' : 'w-0 opacity-0'}`} />
+              </div>
+            );
+          })}
 
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          {pages.map((page, index) => (
-            <button
-              key={page.id}
-              type="button"
-              onClick={() => onSelectPage(page.id)}
-              className={`group relative h-24 min-w-[168px] overflow-hidden rounded-[14px] border transition-all ${
-                page.id === activePageId
-                  ? 'border-accent bg-white shadow-md'
-                  : 'border-border/5 bg-bg-primary/55 hover:bg-bg-primary/75'
-              }`}
-            >
-              <img src={renderPageToDataUrl(page, page.id === activePageId ? selectedStrokeId : null)} alt="" className="h-full w-full object-cover" />
-              <span className="absolute bottom-2 right-2 bg-bg-secondary/90 px-2 py-1 text-[10px] font-medium text-text-secondary shadow-sm">
-                {String(index + 1).padStart(2, '0')}
-              </span>
-            </button>
-          ))}
+          <div className="mx-1 h-6 w-px bg-border/5" />
 
           <button
             type="button"
             onClick={onAddPage}
-            className="flex h-24 min-w-[72px] items-center justify-center rounded-[14px] border border-dashed border-border/10 bg-bg-primary/45 text-2xl text-text-secondary transition-all hover:text-text-primary hover:bg-bg-primary/70"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-border/20 bg-bg-primary/20 text-text-secondary/40 transition-all hover:border-accent/40 hover:bg-bg-primary/50 hover:text-accent/60"
           >
-            +
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 6v12m-6-6h12" />
+            </svg>
           </button>
         </div>
       </div>

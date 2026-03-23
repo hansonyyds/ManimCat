@@ -41,69 +41,85 @@ export function PlotPreviewPanel({
 }: PlotPreviewPanelProps) {
   const previewAttachment = result?.attachments?.find(isPreviewAttachment) ?? result?.attachments?.[0] ?? null
   const outputPath = formatOutputPath(previewAttachment, session)
-  const stripItems = works.slice(0, 8)
+  const stripItems = works.slice(0, 12)
 
   return (
-    <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="shrink-0 px-6 pb-2 pt-6 sm:px-8 lg:px-10">
-          <div className="min-w-0 truncate font-mono text-xs text-text-secondary/58">
-            {outputPath}
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-bg-primary/40 backdrop-blur-sm">
+      {/* 顶部路径栏 - 采用极致消隐设计 */}
+      <div className="relative shrink-0 px-8 pb-3 pt-8">
+        <div className="flex items-center justify-between">
+          <div className="group flex items-center gap-3">
+            <div className="h-1.5 w-1.5 rounded-full bg-accent-rgb/40" />
+            <div className="min-w-0 font-mono text-[10px] uppercase tracking-[0.2em] text-text-secondary/40 transition-colors group-hover:text-text-secondary/70">
+              {outputPath}
+            </div>
+          </div>
+          <div className="flex items-center gap-4 font-mono text-[10px] tracking-widest text-text-secondary/30">
+            <span>READY</span>
+            <span className="studio-cursor">_</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col px-6 pb-6 pt-2 sm:px-8 lg:px-10">
+        {/* 画布主区域 - 对齐项目的大圆角与高级阴影 */}
+        <div className="relative min-h-0 flex-1">
+          <div className="flex h-full min-h-[360px] items-center justify-center sm:min-h-[460px] lg:min-h-[560px]">
+            <PlotPreviewSurface attachment={previewAttachment} result={result} />
+          </div>
+          
+          {/* 这里就是你提到的右上角，现在我们改为半透明消隐设计 */}
+          <div className="absolute right-6 top-6 hidden items-center gap-3 lg:flex">
+             <div className="rounded-full border border-white/10 bg-black/5 px-3 py-1.5 backdrop-blur-md dark:bg-white/5">
+                <span className="font-mono text-[9px] uppercase tracking-tighter text-text-secondary/60">Canvas Engine: Matplotlib</span>
+             </div>
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-4 sm:px-8 lg:px-10">
-          <div className="min-h-0 flex-1">
-            <div className="flex h-full min-h-[360px] items-center justify-center bg-transparent sm:min-h-[460px] lg:min-h-[560px]">
-              <PlotPreviewSurface attachment={previewAttachment} result={result} />
+        {/* 底部条状预览 - 增加呼吸感 */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.4em] text-text-secondary/35">历史产出</div>
+              <div className="h-px w-8 bg-border/10" />
+              <span className="font-mono text-[10px] text-text-secondary/40">
+                {works.length.toString().padStart(2, '0')}
+              </span>
             </div>
           </div>
 
-          <div className="mt-5 px-2 py-3 sm:px-0">
-            <div className="flex items-center gap-3 text-[11px] text-text-secondary/55">
-              <div className="font-medium tracking-[0.18em]">预览区域</div>
-              <span className="rounded-full bg-bg-secondary/70 px-2.5 py-1 text-[11px]">
-                {works.length}
-              </span>
-            </div>
-
-            <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
-              {stripItems.map((entry, index) => {
-                const selected = entry.work.id === selectedWorkId
-                const thumbnail = entry.result?.attachments?.find(isImageAttachment) ?? null
-                return (
-                  <button
-                    key={entry.work.id}
-                    type="button"
-                    onClick={() => onSelectWork(entry.work.id)}
-                    className={`flex h-16 min-w-[5rem] shrink-0 items-center justify-center overflow-hidden rounded-[1rem] bg-white transition ${
-                      selected
-                        ? 'shadow-[0_0_0_2px_rgba(var(--accent-rgb),0.22),0_12px_24px_rgba(15,23,42,0.08)]'
-                        : 'shadow-[0_6px_18px_rgba(15,23,42,0.06)] hover:-translate-y-1'
-                    }`}
-                    title={entry.work.title}
-                  >
-                    {thumbnail ? (
-                      <img
-                        src={thumbnail.path}
-                        alt={thumbnail.name ?? entry.work.title}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="px-3 text-center text-[10px] leading-4 text-text-secondary/45">
-                        IMG {String(index + 1).padStart(2, '0')}
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
-
-              {stripItems.length === 0 && (
-                <div className="flex h-16 min-w-[10rem] items-center rounded-[1rem] bg-white px-4 text-sm text-text-secondary/55 shadow-[0_6px_18px_rgba(15,23,42,0.06)]">
-                  暂无产出
-                </div>
-              )}
-            </div>
+          <div className="mt-4 flex gap-4 overflow-x-auto pb-4 pt-1">
+            {stripItems.map((entry, index) => {
+              const selected = entry.work.id === selectedWorkId
+              const thumbnail = entry.result?.attachments?.find(isImageAttachment) ?? null
+              return (
+                <button
+                  key={entry.work.id}
+                  type="button"
+                  onClick={() => onSelectWork(entry.work.id)}
+                  className={`group relative flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-2xl transition-all duration-500 ${
+                    selected
+                      ? 'bg-bg-secondary/60 border border-accent-rgb/25 scale-[0.96] shadow-inner'
+                      : 'bg-bg-secondary/30 border border-transparent hover:bg-bg-secondary/50 hover:scale-[0.98]'
+                  }`}
+                >
+                  {thumbnail ? (
+                    <img
+                      src={thumbnail.path}
+                      alt={thumbnail.name ?? entry.work.title}
+                      className={`h-full w-full object-cover transition-transform duration-700 ${selected ? 'scale-100' : 'scale-110 opacity-60 group-hover:scale-100 group-hover:opacity-100'}`}
+                    />
+                  ) : (
+                    <div className="font-mono text-[9px] tracking-tighter text-text-secondary/40">
+                      PLOT_{String(index + 1).padStart(2, '0')}
+                    </div>
+                  )}
+                  {selected && (
+                    <div className="absolute inset-0 bg-accent-rgb/5 pointer-events-none" />
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -120,11 +136,11 @@ function PlotPreviewSurface({
 }) {
   if (attachment?.mimeType?.startsWith('image/') || isImagePath(attachment?.path)) {
     return (
-      <div className="flex h-full w-full items-center justify-center rounded-[0.9rem] bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-6">
+      <div className="flex h-full w-full items-center justify-center">
         <img
           src={attachment?.path}
           alt={attachment?.name ?? 'plot preview'}
-          className="max-h-full max-w-full rounded-[0.7rem] object-contain shadow-[0_20px_60px_rgba(15,23,42,0.14)]"
+          className="max-h-full max-w-full object-contain"
         />
       </div>
     )
@@ -132,17 +148,14 @@ function PlotPreviewSurface({
 
   if (result?.kind === 'failure-report') {
     return (
-      <div className="flex h-full items-center justify-center px-10 text-center text-sm leading-7 text-rose-600/80">
-        Plot 渲染失败。请重新生成。
+      <div className="flex flex-col items-center justify-center opacity-30">
+        <div className="text-sm font-medium text-rose-600/70 uppercase tracking-widest">Render Failed</div>
       </div>
     )
   }
 
-  return (
-    <div className="flex h-full w-full items-center justify-center rounded-[0.9rem] bg-white px-10 text-center text-sm leading-7 text-text-secondary/55 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-      Matplotlib Plot Preview
-    </div>
-  )
+  // 没有任何产出时直接返回空，保持界面洁净
+  return null
 }
 
 function isPreviewAttachment(attachment: { path: string; mimeType?: string } | undefined) {
