@@ -32,9 +32,9 @@ function App() {
   const [providersOpen, setProvidersOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [aiModifyOpen, setAiModifyOpen] = useState(false);
-  const [aiModifyInput, setAiModifyInput] = useState('');
   const [currentCode, setCurrentCode] = useState('');
   const [concept, setConcept] = useState('');
+  const [lastCompletedResult, setLastCompletedResult] = useState<JobResult | null>(null);
   const [screen, setScreen] = useState<Screen>('classic');
   const [studioTransitionVisible, setStudioTransitionVisible] = useState(false);
   const [studioIsExiting, setStudioIsExiting] = useState(false);
@@ -57,13 +57,19 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (status === 'completed' && result) {
+      setLastCompletedResult(result);
+    }
+  }, [result, status]);
+
   const resetAll = () => {
     reset();
     setCurrentCode('');
     setConcept('');
     setLastRequest(null);
-    setAiModifyInput('');
     setAiModifyOpen(false);
+    setLastCompletedResult(null);
     setScreen('classic');
     setStudioTransitionVisible(false);
     setStudioIsExiting(false);
@@ -132,6 +138,7 @@ function App() {
     outputMode: OutputMode;
     referenceImages?: ReferenceImage[];
   }) => {
+    setLastCompletedResult(null);
     setConcept(data.concept);
     setProblemAdjustment('');
     void problemFraming.startPlan({ request: data });
@@ -142,6 +149,7 @@ function App() {
       cancelAndReset();
       return;
     }
+    setLastCompletedResult(null);
     reset();
   };
 
@@ -158,6 +166,7 @@ function App() {
     }
     const draft = problemFraming.draft;
     const problemPlan = problemFraming.plan;
+    setLastCompletedResult(null);
     setLastRequest(draft);
     setConcept(draft.concept);
     setCurrentCode('');
@@ -172,7 +181,7 @@ function App() {
   };
 
   const handleRerender = () => {
-    const code = currentCode.trim() || result?.code?.trim() || '';
+    const code = currentCode.trim() || result?.code?.trim() || lastCompletedResult?.code?.trim() || '';
     if (!lastRequest || !code) {
       return;
     }
@@ -181,19 +190,13 @@ function App() {
     renderWithCode({ ...lastRequest, code });
   };
 
-  const handleAiModifySubmit = () => {
-    const code = currentCode.trim() || result?.code?.trim() || '';
+  const handleAiModifySubmit = (instructions: string) => {
+    const code = currentCode.trim() || result?.code?.trim() || lastCompletedResult?.code?.trim() || '';
     if (!lastRequest || !code) {
       return;
     }
 
-    const instructions = aiModifyInput.trim();
-    if (!instructions) {
-      return;
-    }
-
     setAiModifyOpen(false);
-    setAiModifyInput('');
     setCurrentCode('');
     modifyWithAI({
       concept: lastRequest.concept,
@@ -212,6 +215,7 @@ function App() {
   };
 
   const isBusy = status === 'processing' || status === 'cancelling';
+  const displayResult = result ?? lastCompletedResult;
 
   return (
     <div className="min-h-screen bg-bg-primary transition-colors duration-300 overflow-x-hidden">
@@ -219,7 +223,7 @@ function App() {
         <div className={isReturningFromStudio ? 'animate-classic-entrance' : ''}>
           <StudioPage
             status={status}
-            result={result}
+            result={displayResult}
             error={error}
             jobId={jobId}
             stage={stage}
@@ -286,9 +290,7 @@ function App() {
       <Workspace key={`workspace-${workspaceOpen ? 'open' : 'closed'}`} isOpen={workspaceOpen} onClose={() => setWorkspaceOpen(false)} />
       <AiModifyModal
         isOpen={aiModifyOpen}
-        value={aiModifyInput}
         loading={isBusy}
-        onChange={setAiModifyInput}
         onClose={() => setAiModifyOpen(false)}
         onSubmit={handleAiModifySubmit}
       />

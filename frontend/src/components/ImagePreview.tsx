@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { ImageLightbox } from './image-preview/lightbox';
 import { useImageDownload } from './image-preview/use-image-download';
 import { useI18n } from '../i18n';
@@ -7,7 +7,7 @@ interface ImagePreviewProps {
   imageUrls: string[];
 }
 
-export function ImagePreview({ imageUrls }: ImagePreviewProps) {
+export const ImagePreview = memo(function ImagePreview({ imageUrls }: ImagePreviewProps) {
   const { t } = useI18n();
   const [activeIndex, setActiveIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -108,4 +108,4 @@ export function ImagePreview({ imageUrls }: ImagePreviewProps) {
       />
     </div>
   );
-}
+});

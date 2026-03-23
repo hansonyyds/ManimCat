@@ -1,12 +1,13 @@
 // 视频预览组件
 
+import { memo } from 'react';
 import { useI18n } from '../i18n';
 
 interface VideoPreviewProps {
   videoUrl: string;
 }
 
-export function VideoPreview({ videoUrl }: VideoPreviewProps) {
+export const VideoPreview = memo(function VideoPreview({ videoUrl }: VideoPreviewProps) {
   const { t } = useI18n();
 
   const handleDownload = () => {
@@ -44,4 +45,4 @@ export function VideoPreview({ videoUrl }: VideoPreviewProps) {
       </div>
     </div>
   );
-}
+});

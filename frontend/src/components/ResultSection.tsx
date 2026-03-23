@@ -1,5 +1,6 @@
 ﻿// 结果展示区域
 
+import { memo } from 'react';
 import { CodeView } from './CodeView';
 import { ImagePreview } from './ImagePreview';
 import { VideoPreview } from './VideoPreview';
@@ -20,7 +21,7 @@ interface ResultSectionProps {
   isBusy?: boolean;
 }
 
-export function ResultSection({
+export const ResultSection = memo(function ResultSection({
   code,
   outputMode,
   videoUrl,
@@ -82,4 +83,4 @@ export function ResultSection({
       </div>
     </div>
   );
-}
+});

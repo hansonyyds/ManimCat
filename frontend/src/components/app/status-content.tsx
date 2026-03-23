@@ -73,6 +73,7 @@ export function StatusContent({
   onOpenGame,
 }: StatusContentProps) {
   const { t } = useI18n();
+  const canRecoverFromError = status === 'error' && Boolean(result);
 
   if (status === 'idle') {
     return (
@@ -102,39 +103,65 @@ export function StatusContent({
 
   if (status === 'completed' && result) {
     return (
-      <div
-        className="max-w-5xl mx-auto space-y-6 animate-fade-in"
-        style={{
-          animation: 'fadeInUp 0.5s ease-out forwards',
-        }}
-      >
-        <ResultSection
-          code={currentCode || result.code || ''}
-          outputMode={result.output_mode || lastRequest?.outputMode || 'video'}
-          videoUrl={result.video_url || ''}
-          imageUrls={result.image_urls || []}
-          usedAI={result.used_ai || false}
-          renderQuality={result.render_quality || ''}
-          generationType={result.generation_type || ''}
-          onCodeChange={onCodeChange}
-          onRerender={onRerender}
-          onAiModify={onAiModifyOpen}
-          isBusy={isBusy}
-        />
-
-        <div className="text-center">
-          <button
-            onClick={onResetAll}
-            className="px-8 py-2.5 text-sm text-text-secondary/80 hover:text-accent transition-colors bg-bg-secondary/30 hover:bg-bg-secondary/50 rounded-full"
-          >
-            {t('result.newContent')}
-          </button>
-        </div>
-      </div>
+      <ResultContent
+        result={result}
+        currentCode={currentCode}
+        lastRequest={lastRequest}
+        isBusy={isBusy}
+        onCodeChange={onCodeChange}
+        onRerender={onRerender}
+        onAiModifyOpen={onAiModifyOpen}
+        onResetAll={onResetAll}
+      />
     );
   }
 
   if (status === 'error') {
+    if (canRecoverFromError && result) {
+      const showProviderConfigHint = shouldShowProviderConfigHint(error);
+      const shownError = showProviderConfigHint
+        ? t('result.error.noBackendModelConfigured')
+        : (error || t('result.errorFallback'));
+
+      return (
+        <div className="max-w-5xl mx-auto space-y-6 animate-fade-in" style={{ animation: 'fadeInUp 0.4s ease-out forwards' }}>
+          <div className="relative overflow-hidden rounded-[1.75rem] border border-red-200/70 bg-red-50/85 px-6 py-5 shadow-[0_20px_80px_rgba(220,38,38,0.08)]">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 text-red-500">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-900/90">{t('result.errorTitle')}</p>
+                <p className="mt-1 text-sm leading-6 text-red-900/70">{shownError}</p>
+              </div>
+              {showProviderConfigHint && (
+                <button
+                  type="button"
+                  onClick={onOpenProviders}
+                  className="shrink-0 rounded-full bg-white/70 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-red-700/80 transition-colors hover:bg-white hover:text-red-700"
+                >
+                  {t('result.error.configureCustomModel')}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <ResultContent
+            result={result}
+            currentCode={currentCode}
+            lastRequest={lastRequest}
+            isBusy={isBusy}
+            onCodeChange={onCodeChange}
+            onRerender={onRerender}
+            onAiModifyOpen={onAiModifyOpen}
+            onResetAll={onResetAll}
+          />
+        </div>
+      );
+    }
+
     const showProviderConfigHint = shouldShowProviderConfigHint(error);
     const shownError = showProviderConfigHint
       ? t('result.error.noBackendModelConfigured')
@@ -181,4 +208,60 @@ export function StatusContent({
   }
 
   return null;
+}
+
+interface ResultContentProps {
+  result: JobResult;
+  currentCode: string;
+  lastRequest: LastRequest | null;
+  isBusy: boolean;
+  onCodeChange: (code: string) => void;
+  onRerender: () => void;
+  onAiModifyOpen: () => void;
+  onResetAll: () => void;
+}
+
+function ResultContent({
+  result,
+  currentCode,
+  lastRequest,
+  isBusy,
+  onCodeChange,
+  onRerender,
+  onAiModifyOpen,
+  onResetAll,
+}: ResultContentProps) {
+  const { t } = useI18n();
+
+  return (
+    <div
+      className="max-w-5xl mx-auto space-y-6 animate-fade-in"
+      style={{
+        animation: 'fadeInUp 0.5s ease-out forwards',
+      }}
+    >
+      <ResultSection
+        code={currentCode || result.code || ''}
+        outputMode={result.output_mode || lastRequest?.outputMode || 'video'}
+        videoUrl={result.video_url || ''}
+        imageUrls={result.image_urls || []}
+        usedAI={result.used_ai || false}
+        renderQuality={result.render_quality || ''}
+        generationType={result.generation_type || ''}
+        onCodeChange={onCodeChange}
+        onRerender={onRerender}
+        onAiModify={onAiModifyOpen}
+        isBusy={isBusy}
+      />
+
+      <div className="text-center">
+        <button
+          onClick={onResetAll}
+          className="px-8 py-2.5 text-sm text-text-secondary/80 hover:text-accent transition-colors bg-bg-secondary/30 hover:bg-bg-secondary/50 rounded-full"
+        >
+          {t('result.newContent')}
+        </button>
+      </div>
+    </div>
+  );
 }

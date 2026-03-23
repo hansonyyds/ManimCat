@@ -2,7 +2,7 @@
 
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight, vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useI18n } from '../i18n';
 
 interface CodeViewProps {
@@ -12,7 +12,7 @@ interface CodeViewProps {
   disabled?: boolean;
 }
 
-export function CodeView({ code, editable = false, onChange, disabled = false }: CodeViewProps) {
+export const CodeView = memo(function CodeView({ code, editable = false, onChange, disabled = false }: CodeViewProps) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -137,4 +137,4 @@ export function CodeView({ code, editable = false, onChange, disabled = false }:
       </div>
     </div>
   );
-}
+});

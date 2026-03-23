@@ -1,20 +1,26 @@
 // AI 修改对话框
 
+import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n';
 import { useModalTransition } from '../hooks/useModalTransition';
 
 interface AiModifyModalProps {
   isOpen: boolean;
-  value: string;
   loading?: boolean;
-  onChange: (value: string) => void;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: (value: string) => void;
 }
 
-export function AiModifyModal({ isOpen, value, loading = false, onChange, onClose, onSubmit }: AiModifyModalProps) {
+export function AiModifyModal({ isOpen, loading = false, onClose, onSubmit }: AiModifyModalProps) {
   const { t } = useI18n();
   const { shouldRender, isExiting } = useModalTransition(isOpen);
+  const [draft, setDraft] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setDraft('');
+    }
+  }, [isOpen]);
 
   if (!shouldRender) return null;
 
@@ -55,8 +61,8 @@ export function AiModifyModal({ isOpen, value, loading = false, onChange, onClos
           <textarea
             id="aiModifyInput"
             rows={5}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
             placeholder={t('aiModify.placeholder')}
             className="w-full px-6 py-6 bg-bg-secondary/50 border border-border/5 rounded-3xl text-base text-text-primary placeholder-text-secondary/30 focus:outline-none focus:border-accent-rgb/30 focus:bg-bg-secondary/80 transition-all resize-none shadow-inner"
           />
@@ -77,8 +83,8 @@ export function AiModifyModal({ isOpen, value, loading = false, onChange, onClos
             {t('common.cancel')}
           </button>
           <button
-            onClick={onSubmit}
-            disabled={loading || value.trim().length === 0}
+            onClick={() => onSubmit(draft.trim())}
+            disabled={loading || draft.trim().length === 0}
             className="flex-1 py-4 text-sm text-bg-primary bg-text-primary hover:bg-accent-hover-rgb rounded-2xl transition-all active:scale-95 disabled:opacity-50 shadow-lg font-medium"
           >
             {loading ? t('aiModify.submitting') : t('aiModify.submit')}
