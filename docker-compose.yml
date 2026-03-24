@@ -47,8 +47,14 @@ services:
       - MANIMCAT_ROUTE_MODELS=${MANIMCAT_ROUTE_MODELS:-}
       - DISPLAY=:99
     volumes:
+      # Persist studio workspace sessions, generated code, and studio outputs
+      - studio-workspace-data:/app/.studio-workspace
+      # Persist generated images and uploaded reference images
+      - image-storage:/app/public/images
       # Persist generated videos
       - video-storage:/app/public/videos
+      # Persist Manim media cache and intermediate render artifacts
+      - manim-media:/app/media
       # Temp directory for rendering
       - manim-tmp:/app/tmp
     depends_on:
@@ -78,7 +84,13 @@ networks:
     driver: bridge
 
 volumes:
+  studio-workspace-data:
+    driver: local
+  image-storage:
+    driver: local
   manim-tmp:
+    driver: local
+  manim-media:
     driver: local
   redis-data:
     driver: local

@@ -136,7 +136,18 @@ docker compose ps
 
 - Compose 对外暴露 `3000`。
 - 容器内 Redis 服务名固定为 `redis`。
-- 生成的视频会持久化到 volume，默认挂载到 `/app/public/videos`。
+- Studio 会话工作目录会持久化到 `studio-workspace-data` volume，挂载到 `/app/.studio-workspace`。
+- 生成图片与上传的参考图会持久化到 `image-storage` volume，挂载到 `/app/public/images`。
+- 生成的视频会持久化到 `video-storage` volume，挂载到 `/app/public/videos`。
+- Manim 的媒体缓存与中间渲染文件会持久化到 `manim-media` volume，挂载到 `/app/media`。
+- 临时渲染目录会持久化到 `manim-tmp` volume，挂载到 `/app/tmp`。
+
+如需检查 volume：
+
+```bash
+docker volume ls
+docker volume inspect manimcat_studio-workspace-data
+```
 
 ---
 
@@ -303,4 +314,3 @@ ENABLE_STUDIO_DB=true
 - Space SDK 是否选了 Docker
 - 是否把环境变量写到了 Space Settings
 - 是否错误照搬了旧文档里的 `Dockerfile.huggingface`
-

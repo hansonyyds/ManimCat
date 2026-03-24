@@ -136,7 +136,18 @@ Notes:
 
 - Compose exposes port `3000` to the host.
 - Inside Compose, Redis is reached through service name `redis`.
+- Studio session workspaces are persisted in the `studio-workspace-data` volume at `/app/.studio-workspace`.
+- Generated and uploaded images are persisted in the `image-storage` volume at `/app/public/images`.
 - Generated videos are persisted in the `video-storage` volume at `/app/public/videos`.
+- Manim media cache and intermediate artifacts are persisted in the `manim-media` volume at `/app/media`.
+- Temporary render files are persisted in the `manim-tmp` volume at `/app/tmp`.
+
+Inspect volumes if needed:
+
+```bash
+docker volume ls
+docker volume inspect manimcat_studio-workspace-data
+```
 
 ---
 
@@ -303,4 +314,3 @@ Check:
 - the Space SDK is Docker
 - env vars were added in Space Settings
 - you did not follow stale instructions mentioning `Dockerfile.huggingface`
-
