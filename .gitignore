@@ -57,6 +57,7 @@ triangle.png
 !CONTRIBUTING.md
 !.github/pull_request_template.md
 !src/prompts/templates/**/*.md
+!src/studio-agent/prompts/templates/**/*.md
 
 # Flow type files
 *.flow
