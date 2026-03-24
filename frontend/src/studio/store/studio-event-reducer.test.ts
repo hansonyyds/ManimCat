@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { studioEventReducer } from './studio-event-reducer'
 import { createInitialStudioState } from './studio-session-store'
-import type { StudioAssistantMessage, StudioUserMessage } from '../protocol/studio-agent-types'
+import type { StudioAssistantMessage, StudioSession, StudioTextPart, StudioUserMessage } from '../protocol/studio-agent-types'
 
 describe('studioEventReducer', () => {
   it('keeps the optimistic assistant message and stores the error when run submission fails', () => {
@@ -9,27 +9,9 @@ describe('studioEventReducer', () => {
       ...createInitialStudioState(),
       entities: {
         ...createInitialStudioState().entities,
-        session: {
-          id: 'session-1',
-          projectId: 'project-1',
-          agentType: 'builder',
-          title: 'Studio',
-          directory: 'D:/projects/ManimCat',
-          permissionLevel: 'L2',
-          permissionRules: [],
-          createdAt: '2026-03-22T00:00:00.000Z',
-          updatedAt: '2026-03-22T00:00:00.000Z',
-        },
+        session: createSession(),
         messagesById: {
-          'local-assistant-1': {
-            id: 'local-assistant-1',
-            sessionId: 'session-1',
-            role: 'assistant',
-            agent: 'builder',
-            parts: [],
-            createdAt: '2026-03-22T00:00:00.000Z',
-            updatedAt: '2026-03-22T00:00:00.000Z',
-          },
+          'local-assistant-1': createAssistantMessage(),
         },
         messageOrder: ['local-assistant-1'],
       },
@@ -48,11 +30,7 @@ describe('studioEventReducer', () => {
     expect(next.runtime.submitting).toBe(false)
     expect(next.error).toBe('Studio provider config is incomplete')
     expect(next.entities.messagesById['local-assistant-1']?.role).toBe('assistant')
-    expect(
-      next.entities.messagesById['local-assistant-1']?.role === 'assistant'
-        ? next.entities.messagesById['local-assistant-1'].parts[0]?.text
-        : '',
-    ).toBe('Studio provider config is incomplete')
+    expect(readFirstAssistantText(next.entities.messagesById['local-assistant-1'])).toBe('Studio provider config is incomplete')
   })
 
   it('creates optimistic user and assistant messages before the run starts', () => {
@@ -65,15 +43,7 @@ describe('studioEventReducer', () => {
       createdAt: '2026-03-22T00:00:00.000Z',
       updatedAt: '2026-03-22T00:00:00.000Z',
     }
-    const assistantMessage: StudioAssistantMessage = {
-      id: 'local-assistant-1',
-      sessionId: 'session-1',
-      role: 'assistant',
-      agent: 'builder',
-      parts: [],
-      createdAt: '2026-03-22T00:00:00.000Z',
-      updatedAt: '2026-03-22T00:00:00.000Z',
-    }
+    const assistantMessage = createAssistantMessage()
 
     const next = studioEventReducer(state, {
       type: 'optimistic_messages_created',
@@ -90,27 +60,9 @@ describe('studioEventReducer', () => {
       ...createInitialStudioState(),
       entities: {
         ...createInitialStudioState().entities,
-        session: {
-          id: 'session-1',
-          projectId: 'project-1',
-          agentType: 'builder',
-          title: 'Studio',
-          directory: 'D:/projects/ManimCat',
-          permissionLevel: 'L2',
-          permissionRules: [],
-          createdAt: '2026-03-22T00:00:00.000Z',
-          updatedAt: '2026-03-22T00:00:00.000Z',
-        },
+        session: createSession(),
         messagesById: {
-          'local-assistant-1': {
-            id: 'local-assistant-1',
-            sessionId: 'session-1',
-            role: 'assistant',
-            agent: 'builder',
-            parts: [],
-            createdAt: '2026-03-22T00:00:00.000Z',
-            updatedAt: '2026-03-22T00:00:00.000Z',
-          },
+          'local-assistant-1': createAssistantMessage(),
         },
         messageOrder: ['local-assistant-1'],
       },
@@ -136,7 +88,41 @@ describe('studioEventReducer', () => {
 
     const message = next.entities.messagesById['local-assistant-1']
     expect(message?.role).toBe('assistant')
-    expect(message?.role === 'assistant' ? message.parts[0]?.text : '').toBe('hello')
+    expect(readFirstAssistantText(message)).toBe('hello')
     expect(next.runtime.assistantTextByRunId['run-1']).toBe('hello')
   })
 })
+
+function createSession(): StudioSession {
+  return {
+    id: 'session-1',
+    projectId: 'project-1',
+    agentType: 'builder',
+    title: 'Studio',
+    directory: 'D:/projects/ManimCat',
+    permissionLevel: 'L2',
+    permissionRules: [],
+    createdAt: '2026-03-22T00:00:00.000Z',
+    updatedAt: '2026-03-22T00:00:00.000Z',
+  }
+}
+
+function createAssistantMessage(): StudioAssistantMessage {
+  return {
+    id: 'local-assistant-1',
+    sessionId: 'session-1',
+    role: 'assistant',
+    agent: 'builder',
+    parts: [],
+    createdAt: '2026-03-22T00:00:00.000Z',
+    updatedAt: '2026-03-22T00:00:00.000Z',
+  }
+}
+
+function readFirstAssistantText(message: StudioAssistantMessage | StudioUserMessage | undefined): string {
+  if (!message || message.role !== 'assistant') {
+    return ''
+  }
+  const firstPart = message.parts[0] as StudioTextPart | undefined
+  return firstPart?.type === 'text' ? firstPart.text : ''
+}

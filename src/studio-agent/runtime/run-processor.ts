@@ -337,7 +337,7 @@ export class StudioRunProcessor {
       }
     })
     toolCalls.delete(event.toolCallId)
-    return true
+    return event.metadata?.recoverable !== true
   }
 
   private async findToolPart(

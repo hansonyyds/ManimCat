@@ -1,3 +1,4 @@
+import type OpenAI from 'openai'
 import type {
   StudioAssistantMessage,
   StudioMessageStore,
@@ -23,6 +24,10 @@ import type {
   StudioSubagentRunResult
 } from '../runtime/tool-runtime-context'
 import type { CustomApiConfig } from '../../types'
+import {
+  buildStudioRunMetadataPatch,
+  readStudioRunAutonomyMetadata,
+} from '../runs/autonomy-policy'
 import { buildStudioAgentSystemPrompt } from './studio-agent-prompt'
 import { buildStudioConversationMessages } from './studio-message-history'
 import { determineStudioAgentLoopAction } from './studio-agent-loop-policy'
@@ -53,6 +58,7 @@ interface StudioOpenAIToolLoopInput {
   customApiConfig: CustomApiConfig
   maxSteps?: number
   toolChoice?: StudioToolChoice
+  onCheckpoint?: (patch: Partial<StudioRun>) => Promise<void>
 }
 
 export async function* createStudioOpenAIToolLoop(
@@ -73,10 +79,24 @@ export async function* createStudioOpenAIToolLoop(
     session: input.session,
     workContext: input.workContext
   })
-  const maxSteps = input.maxSteps ?? DEFAULT_MAX_STEPS
+  let autonomy = readStudioRunAutonomyMetadata(input.run.metadata)
+  const maxSteps = input.maxSteps ?? autonomy.maxSteps ?? DEFAULT_MAX_STEPS
   const toolChoice = input.toolChoice ?? 'auto'
 
   for (let step = 0; step < maxSteps; step += 1) {
+    const nextStepCount = autonomy.stepCount + 1
+    await input.onCheckpoint?.({
+      metadata: buildStudioRunMetadataPatch({
+        metadata: input.run.metadata,
+        stepCount: nextStepCount,
+      }),
+    })
+    input.run.metadata = buildStudioRunMetadataPatch({
+      metadata: input.run.metadata,
+      stepCount: nextStepCount,
+    })
+    autonomy = readStudioRunAutonomyMetadata(input.run.metadata)
+
     const completion = await client.chat.completions.create({
       model,
       messages: [
@@ -92,6 +112,12 @@ export async function* createStudioOpenAIToolLoop(
     const assistantText = normalizeAssistantText(message?.content)
     const toolCalls = message?.tool_calls ?? []
 
+    await persistProviderMessageSnapshot({
+      messageStore: input.messageStore,
+      assistantMessage: input.assistantMessage,
+      providerMessage: message
+    })
+
     if (assistantText) {
       yield { type: 'text-start' }
       yield { type: 'text-delta', text: assistantText }
@@ -106,6 +132,7 @@ export async function* createStudioOpenAIToolLoop(
     })
 
     if (nextAction.type === 'finish') {
+      await checkpointSuccess(input, autonomy)
       yield {
         type: 'finish-step',
         usage: {
@@ -119,6 +146,7 @@ export async function* createStudioOpenAIToolLoop(
       yield { type: 'text-start' }
       yield { type: 'text-delta', text: nextAction.message }
       yield { type: 'text-end' }
+      await checkpointFailure(input, autonomy, nextAction.message)
       yield {
         type: 'finish-step',
         usage: {
@@ -128,20 +156,9 @@ export async function* createStudioOpenAIToolLoop(
       return
     }
 
-    conversation.push({
-      role: 'assistant',
-      content: assistantText || null,
-      tool_calls: toolCalls.map((toolCall) => ({
-        id: toolCall.id,
-        type: 'function',
-        function: {
-          name: toolCall.function.name,
-          arguments: toolCall.function.arguments
-        }
-      }))
-    })
+    conversation.push(toAssistantConversationMessage(message, assistantText, toolCalls))
 
-    let shouldStop = false
+    let stepFailureMessage: string | null = null
     const hasAssistantText = Boolean(assistantText)
     for (const toolCall of toolCalls) {
       const toolName = toolCall.function.name
@@ -149,7 +166,8 @@ export async function* createStudioOpenAIToolLoop(
       const parsedInput = parseToolArguments(toolName, toolCall.function.arguments)
 
       if (!parsedInput.ok) {
-        shouldStop = true
+        stepFailureMessage = parsedInput.error
+        const fatal = autonomy.consecutiveFailures + 1 >= autonomy.maxConsecutiveFailures
         yield {
           type: 'tool-input-start',
           id: toolCallId,
@@ -165,7 +183,11 @@ export async function* createStudioOpenAIToolLoop(
         yield {
           type: 'tool-error',
           toolCallId,
-          error: parsedInput.error
+          error: parsedInput.error,
+          metadata: {
+            recoverable: !fatal,
+            failureCount: autonomy.consecutiveFailures + 1,
+          }
         }
         conversation.push({
           role: 'tool',
@@ -205,8 +227,19 @@ export async function* createStudioOpenAIToolLoop(
       })) {
         transcript = eventToTranscript(event, transcript)
         if (event.type === 'tool-error') {
-          shouldStop = true
+          stepFailureMessage = event.error
+          const fatal = autonomy.consecutiveFailures + 1 >= autonomy.maxConsecutiveFailures
+          yield {
+            ...event,
+            metadata: {
+              ...(event.metadata ?? {}),
+              recoverable: !fatal,
+              failureCount: autonomy.consecutiveFailures + 1,
+            }
+          }
+          break
         }
+
         yield event
       }
 
@@ -216,9 +249,42 @@ export async function* createStudioOpenAIToolLoop(
         content: transcript || '(no tool output)'
       })
 
-      if (shouldStop) {
+      if (stepFailureMessage) {
         break
       }
+    }
+
+    if (stepFailureMessage) {
+      autonomy = await checkpointFailure(input, autonomy, stepFailureMessage)
+      if (autonomy.consecutiveFailures >= autonomy.maxConsecutiveFailures) {
+        const stopMessage = `Stopped after ${autonomy.consecutiveFailures} consecutive failures: ${stepFailureMessage}`
+        yield { type: 'text-start' }
+        yield { type: 'text-delta', text: stopMessage }
+        yield { type: 'text-end' }
+        await input.onCheckpoint?.({
+          metadata: buildStudioRunMetadataPatch({
+            metadata: input.run.metadata,
+            stepCount: autonomy.stepCount,
+            consecutiveFailures: autonomy.consecutiveFailures,
+            stopReason: stopMessage,
+          }),
+        })
+        input.run.metadata = buildStudioRunMetadataPatch({
+          metadata: input.run.metadata,
+          stepCount: autonomy.stepCount,
+          consecutiveFailures: autonomy.consecutiveFailures,
+          stopReason: stopMessage,
+        })
+        yield {
+          type: 'finish-step',
+          usage: {
+            tokens: completion.usage?.total_tokens
+          }
+        }
+        return
+      }
+    } else {
+      autonomy = await checkpointSuccess(input, autonomy)
     }
 
     yield {
@@ -227,11 +293,35 @@ export async function* createStudioOpenAIToolLoop(
         tokens: completion.usage?.total_tokens
       }
     }
-
-    if (shouldStop) {
-      return
-    }
   }
+}
+
+async function checkpointSuccess(input: StudioOpenAIToolLoopInput, autonomy: ReturnType<typeof readStudioRunAutonomyMetadata>) {
+  const metadata = buildStudioRunMetadataPatch({
+    metadata: input.run.metadata,
+    stepCount: autonomy.stepCount,
+    consecutiveFailures: 0,
+    stopReason: null,
+  })
+  await input.onCheckpoint?.({ metadata })
+  input.run.metadata = metadata
+  return readStudioRunAutonomyMetadata(metadata)
+}
+
+async function checkpointFailure(
+  input: StudioOpenAIToolLoopInput,
+  autonomy: ReturnType<typeof readStudioRunAutonomyMetadata>,
+  message: string
+) {
+  const metadata = buildStudioRunMetadataPatch({
+    metadata: input.run.metadata,
+    stepCount: autonomy.stepCount,
+    consecutiveFailures: autonomy.consecutiveFailures + 1,
+    stopReason: message,
+  })
+  await input.onCheckpoint?.({ metadata })
+  input.run.metadata = metadata
+  return readStudioRunAutonomyMetadata(metadata)
 }
 
 function normalizeAssistantText(content: unknown): string {
@@ -287,7 +377,51 @@ function eventToTranscript(event: StudioProcessorStreamEvent, current: string): 
   return current
 }
 
+function toAssistantConversationMessage(
+  message: OpenAI.Chat.Completions.ChatCompletionMessage | undefined,
+  assistantText: string,
+  toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
+): OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam {
+  return {
+    role: 'assistant',
+    content: message?.content ?? (assistantText || null),
+    tool_calls: toolCalls.length
+      ? toolCalls.map((toolCall) => ({
+          ...toolCall,
+          function: {
+            ...toolCall.function,
+            arguments: toolCall.function.arguments
+          }
+        }))
+      : undefined
+  }
+}
 
+async function persistProviderMessageSnapshot(input: {
+  messageStore: StudioMessageStore
+  assistantMessage: StudioAssistantMessage
+  providerMessage?: OpenAI.Chat.Completions.ChatCompletionMessage
+}): Promise<void> {
+  if (!input.providerMessage) {
+    return
+  }
 
+  const metadata = {
+    ...(input.assistantMessage.metadata ?? {}),
+    providerMessage: {
+      content: input.providerMessage.content ?? null,
+      tool_calls: input.providerMessage.tool_calls?.map((toolCall) => ({
+        ...toolCall,
+        function: {
+          ...toolCall.function,
+          arguments: toolCall.function.arguments
+        }
+      })) ?? []
+    }
+  }
 
-
+  input.assistantMessage.metadata = metadata
+  await input.messageStore.updateAssistantMessage(input.assistantMessage.id, {
+    metadata
+  })
+}

@@ -8,7 +8,11 @@ import {
   sendStudioSuccess
 } from './helpers/studio-agent-responses'
 import { parseStudioPatchSessionRequest } from './helpers/studio-agent-session-control'
-import { parseStudioCreateRunRequest, parseStudioCreateSessionRequest } from './helpers/studio-agent-run-request'
+import {
+  parseStudioContinueRunRequest,
+  parseStudioCreateRunRequest,
+  parseStudioCreateSessionRequest
+} from './helpers/studio-agent-run-request'
 import { ensureDefaultStudioWorkspaceExists } from '../studio-agent/workspace/default-studio-workspace'
 
 const router = express.Router()
@@ -151,13 +155,19 @@ router.post('/studio-agent/runs', authMiddleware, asyncHandler(async (req, res) 
     return sendStudioError(res, 404, 'NOT_FOUND', 'Session not found', { sessionId })
   }
 
-  const result = await studioRuntime.runtime.run({
+  const started = await studioRuntime.startRun({
     projectId,
     session,
     inputText,
     customApiConfig: parsed.customApiConfig,
     toolChoice: parsed.toolChoice
   })
+
+  if (!started) {
+    return sendStudioError(res, 409, 'WORK_CONFLICT', 'A studio run is already active for this session', {
+      sessionId,
+    })
+  }
 
   await studioRuntime.syncSession(session.id)
 
@@ -170,16 +180,79 @@ router.post('/studio-agent/runs', authMiddleware, asyncHandler(async (req, res) 
   ])
 
   sendStudioSuccess(res, {
-    run: result.run,
-    assistantMessage: result.assistantMessage,
-    text: result.text,
+    run: started.run,
+    assistantMessage: started.assistantMessage,
+    text: '',
     messages,
     sessionEvents,
     tasks,
     works,
     workResults,
     pendingPermissions: studioRuntime.listPendingPermissions()
+  }, 202)
+}))
+
+router.post('/studio-agent/runs/:runId/continue', authMiddleware, asyncHandler(async (req, res) => {
+  const parsed = parseStudioContinueRunRequest(req.body)
+  const projectId = parsed.projectId ?? 'default-project'
+
+  const continued = await studioRuntime.continueRun({
+    projectId,
+    sourceRunId: req.params.runId,
+    inputText: parsed.inputText,
+    customApiConfig: parsed.customApiConfig,
+    toolChoice: parsed.toolChoice
   })
+
+  if (continued.status === 'not_found') {
+    return sendStudioError(res, 404, 'NOT_FOUND', 'Run or session not found', { runId: req.params.runId })
+  }
+
+  if (continued.status === 'not_resumable') {
+    return sendStudioError(res, 409, 'WORK_CONFLICT', 'This studio run is not resumable', {
+      runId: req.params.runId,
+      sessionId: continued.session?.id
+    })
+  }
+
+  if (continued.status === 'conflict') {
+    return sendStudioError(res, 409, 'WORK_CONFLICT', 'A studio run is already active for this session', {
+      runId: req.params.runId,
+      sessionId: continued.session?.id
+    })
+  }
+
+  if (continued.status !== 'started') {
+    return sendStudioError(res, 500, 'INTERNAL_ERROR', 'Unexpected studio continuation state', {
+      runId: req.params.runId,
+      status: continued.status
+    })
+  }
+
+  const continuedSession = continued.session
+  const continuedAssistantMessage = continued.assistantMessage
+
+  await studioRuntime.syncSession(continuedSession.id)
+
+  const [messages, sessionEvents, tasks, works, workResults] = await Promise.all([
+    studioRuntime.messageStore.listBySessionId(continuedSession.id),
+    studioRuntime.sessionEventStore.listBySessionId(continuedSession.id),
+    studioRuntime.taskStore.listBySessionId(continuedSession.id),
+    studioRuntime.workStore.listBySessionId(continuedSession.id),
+    studioRuntime.listWorkResultsBySessionId(continuedSession.id)
+  ])
+
+  sendStudioSuccess(res, {
+    run: continued.run,
+    assistantMessage: continuedAssistantMessage,
+    text: '',
+    messages,
+    sessionEvents,
+    tasks,
+    works,
+    workResults,
+    pendingPermissions: studioRuntime.listPendingPermissions()
+  }, 202)
 }))
 
 router.get('/studio-agent/permissions/pending', authMiddleware, asyncHandler(async (_req, res) => {

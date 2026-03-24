@@ -9,11 +9,16 @@ import type {
 import { buildStudioSubagentPrompt } from '../prompts/subagent-prompt'
 import type { StudioResolvedSkill } from './tool-runtime-context'
 
-export function buildDraftRun(session: StudioSession, inputText: string): StudioRun {
+export function buildDraftRun(
+  session: StudioSession,
+  inputText: string,
+  metadata?: Record<string, unknown>
+): StudioRun {
   return createStudioRun({
     sessionId: session.id,
     inputText,
-    activeAgent: session.agentType
+    activeAgent: session.agentType,
+    metadata
   })
 }
 
@@ -73,3 +78,12 @@ export function withResolvedPlan<T extends { plan: StudioRuntimeTurnPlan }>(inpu
 }
 
 
+
+function readRunStopReason(run: StudioRun): string | undefined {
+  const autonomy = run.metadata?.autonomy
+  if (!autonomy || typeof autonomy !== 'object' || Array.isArray(autonomy)) {
+    return undefined
+  }
+  const stopReason = (autonomy as Record<string, unknown>).stopReason
+  return typeof stopReason === 'string' && stopReason.trim() ? stopReason : undefined
+}

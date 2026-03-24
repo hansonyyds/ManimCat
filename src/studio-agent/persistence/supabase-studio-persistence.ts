@@ -57,6 +57,7 @@ type StudioMessageRow = {
   agent: StudioAssistantMessage['agent'] | null
   text: string | null
   summary: string | null
+  metadata: JsonRecord | null
   created_at: string
   updated_at: string
 }
@@ -85,6 +86,7 @@ type StudioRunRow = {
   created_at: string
   completed_at: string | null
   error: string | null
+  metadata: JsonRecord | null
 }
 
 type StudioSessionEventRow = {
@@ -417,6 +419,7 @@ async function fromMessageRow(client: SupabaseClient, row: StudioMessageRow): Pr
       agent: row.agent ?? 'builder',
       parts: (data ?? []).map((part) => fromPartRow(part as StudioPartRow)),
       summary: row.summary ?? undefined,
+      metadata: row.metadata ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
@@ -438,6 +441,7 @@ function fromSessionRow(row: StudioSessionRow): StudioSession {
     projectId: row.project_id,
     workspaceId: row.workspace_id ?? undefined,
     parentSessionId: row.parent_session_id ?? undefined,
+    studioKind: readStudioKindFromMetadata(row.metadata),
     agentType: row.agent_type,
     title: row.title,
     directory: row.directory,
@@ -510,6 +514,7 @@ function fromRunRow(row: StudioRunRow): StudioRun {
     createdAt: row.created_at,
     completedAt: row.completed_at ?? undefined,
     error: row.error ?? undefined,
+    metadata: row.metadata ?? undefined,
   }
 }
 
@@ -582,6 +587,7 @@ function toAssistantMessageRow(message: StudioAssistantMessage): StudioMessageRo
     agent: message.agent,
     text: null,
     summary: message.summary ?? null,
+    metadata: message.metadata ?? null,
     created_at: message.createdAt,
     updated_at: message.updatedAt,
   }
@@ -595,6 +601,7 @@ function toUserMessageRow(message: StudioUserMessage): StudioMessageRow {
     agent: null,
     text: message.text,
     summary: null,
+    metadata: null,
     created_at: message.createdAt,
     updated_at: message.updatedAt,
   }
@@ -661,6 +668,7 @@ function toRunRow(run: StudioRun): StudioRunRow {
     created_at: run.createdAt,
     completed_at: run.completedAt ?? null,
     error: run.error ?? null,
+    metadata: run.metadata ?? null,
   }
 }
 
@@ -726,6 +734,7 @@ function toAssistantMessagePatch(patch: Partial<Omit<StudioAssistantMessage, 'id
   return compactObject({
     agent: patch.agent,
     summary: patch.summary,
+    metadata: patch.metadata,
   })
 }
 
@@ -777,6 +786,7 @@ function toRunPatch(patch: Partial<StudioRun>) {
     created_at: patch.createdAt,
     completed_at: patch.completedAt,
     error: patch.error,
+    metadata: patch.metadata,
   })
 }
 
@@ -843,6 +853,8 @@ function asAttachments(value: JsonRecord[] | null): StudioWorkResult['attachment
   return value ? (value as unknown as StudioWorkResult['attachments']) : undefined
 }
 
-
-
+function readStudioKindFromMetadata(metadata: JsonRecord | null): StudioSession['studioKind'] | undefined {
+  const value = metadata?.studioKind
+  return value === 'plot' || value === 'manim' ? value : undefined
+}
 

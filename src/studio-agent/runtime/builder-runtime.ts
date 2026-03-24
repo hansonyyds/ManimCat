@@ -19,7 +19,7 @@ import type {
 } from '../domain/types'
 import type { StudioPermissionService } from '../permissions/permission-service'
 import { StudioToolRegistry } from '../tools/registry'
-import { StudioSessionRunner } from './session-runner'
+import { StudioSessionRunner, type StudioBackgroundRunHandle } from './session-runner'
 import type { StudioTurnPlanResolver } from './turn-plan-resolver'
 import type {
   StudioResolvedSkill,
@@ -70,8 +70,8 @@ export class StudioBuilderRuntime {
     return this.runner.createAssistantMessage(session)
   }
 
-  createRun(session: StudioSession, inputText: string): StudioRun {
-    return this.runner.createRun(session, inputText)
+  createRun(session: StudioSession, inputText: string, metadata?: Record<string, unknown>): StudioRun {
+    return this.runner.createRun(session, inputText, metadata)
   }
 
   async executePlan(input: {
@@ -99,8 +99,20 @@ export class StudioBuilderRuntime {
     inputText: string
     customApiConfig?: CustomApiConfig
     toolChoice?: StudioToolChoice
+    runMetadata?: Record<string, unknown>
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
     return this.runner.run(input)
+  }
+
+  async startBackgroundRun(input: {
+    projectId: string
+    session: StudioSession
+    inputText: string
+    customApiConfig?: CustomApiConfig
+    toolChoice?: StudioToolChoice
+    runMetadata?: Record<string, unknown>
+  }): Promise<StudioBackgroundRunHandle> {
+    return this.runner.startBackgroundRun(input)
   }
 
   async runSubagent(input: StudioSubagentRunRequest): Promise<StudioSubagentRunResult> {

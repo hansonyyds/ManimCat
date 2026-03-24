@@ -22,6 +22,7 @@ import type {
   StudioWorkStatus,
   StudioWorkType
 } from './types'
+import { createInitialStudioRunMetadata } from '../runs/autonomy-policy'
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -61,6 +62,7 @@ export function createStudioRun(input: {
   sessionId: string
   inputText: string
   activeAgent: StudioAgentType
+  metadata?: Record<string, unknown>
 }): StudioRun {
   return {
     id: `run_${randomUUID()}`,
@@ -68,7 +70,8 @@ export function createStudioRun(input: {
     status: 'pending',
     inputText: input.inputText,
     activeAgent: input.activeAgent,
-    createdAt: nowIso()
+    createdAt: nowIso(),
+    metadata: createInitialStudioRunMetadata(input.metadata)
   }
 }
 
@@ -232,5 +235,3 @@ export function replaceMessagePart(parts: StudioMessagePart[], nextPart: StudioM
   next[index] = nextPart
   return next
 }
-
-

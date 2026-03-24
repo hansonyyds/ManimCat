@@ -45,3 +45,4 @@ export class InMemoryStudioMessageStore implements StudioMessageStore {
     return next
   }
 }
+

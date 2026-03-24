@@ -75,6 +75,7 @@ export interface StudioRun {
   createdAt: string
   completedAt?: string
   error?: string
+  metadata?: Record<string, unknown>
 }
 
 export interface StudioTask {
@@ -128,6 +129,3 @@ export interface StudioSessionEvent {
   updatedAt: string
   consumedAt?: string
 }
-
-
-

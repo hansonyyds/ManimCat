@@ -62,6 +62,29 @@ interface StudioSessionRunnerOptions {
   resolveTurnPlan: StudioTurnPlanResolver
 }
 
+interface StudioRunRequestInput {
+  projectId: string
+  session: StudioSession
+  inputText: string
+  customApiConfig?: CustomApiConfig
+  toolChoice?: StudioToolChoice
+  runMetadata?: Record<string, unknown>
+}
+
+interface StudioPreparedRunContext {
+  input: StudioRunRequestInput
+  workContext: StudioWorkContext
+  run: StudioRun
+  assistantMessage: StudioAssistantMessage
+  eventBus: StudioEventBus
+}
+
+export interface StudioBackgroundRunHandle {
+  run: StudioRun
+  assistantMessage: StudioAssistantMessage
+  completion: Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }>
+}
+
 export class StudioSessionRunner {
   private readonly registry: StudioToolRegistry
   private readonly processor: StudioRunProcessor
@@ -103,42 +126,22 @@ export class StudioSessionRunner {
     return this.messageStore.createAssistantMessage(message)
   }
 
-  createRun(session: StudioSession, inputText: string): StudioRun {
-    return buildDraftRun(session, inputText)
+  createRun(session: StudioSession, inputText: string, metadata?: Record<string, unknown>): StudioRun {
+    return buildDraftRun(session, inputText, metadata)
   }
 
-  async run(input: {
-    projectId: string
-    session: StudioSession
-    inputText: string
-    customApiConfig?: CustomApiConfig
-    toolChoice?: StudioToolChoice
-  }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
-    const workContext = await this.buildWorkContext(input)
+  async run(input: StudioRunRequestInput): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
+    const handle = await this.startBackgroundRun(input)
+    return handle.completion
+  }
 
-    if (hasUsableCustomApiConfig(input.customApiConfig)) {
-      return this.runWithAgentLoop({
-        ...input,
-        customApiConfig: input.customApiConfig,
-        toolChoice: resolveStudioToolChoice({ session: input.session, override: input.toolChoice }),
-        workContext
-      })
+  async startBackgroundRun(input: StudioRunRequestInput): Promise<StudioBackgroundRunHandle> {
+    const prepared = await this.prepareRun(input)
+    return {
+      run: prepared.run,
+      assistantMessage: prepared.assistantMessage,
+      completion: this.executePreparedRun(prepared)
     }
-
-    const plan = await this.resolveTurnPlan({
-      projectId: input.projectId,
-      session: input.session,
-      run: buildDraftRun(input.session, input.inputText),
-      assistantMessage: buildDraftAssistantMessage(input.session),
-      inputText: input.inputText,
-      workContext
-    })
-
-    return this.runWithResolvedPlan({
-      ...input,
-      plan,
-      workContext
-    })
   }
 
   async runWithPlan(input: {
@@ -149,10 +152,12 @@ export class StudioSessionRunner {
     customApiConfig?: CustomApiConfig
     toolChoice?: StudioToolChoice
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
-    const workContext = await this.buildWorkContext(input)
-    return this.runWithResolvedPlan({
-      ...input,
-      workContext
+    const prepared = await this.prepareRun(input)
+    return this.executeResolvedPlan({
+      prepared,
+      plan: input.plan,
+      customApiConfig: input.customApiConfig,
+      toolChoice: input.toolChoice
     })
   }
 
@@ -181,6 +186,61 @@ export class StudioSessionRunner {
     }
   }
 
+  private async prepareRun(input: StudioRunRequestInput): Promise<StudioPreparedRunContext> {
+    const workContext = await this.buildWorkContext(input)
+    const run = this.createRun(input.session, input.inputText, input.runMetadata)
+    const persistedRun = this.runStore ? await this.runStore.create(run) : run
+    await this.messageStore.createUserMessage(createStudioUserMessage({
+      sessionId: input.session.id,
+      text: input.inputText
+    }))
+    const assistantMessage = await this.createAssistantMessage(input.session)
+    const eventBus = this.sharedEventBus ?? new InMemoryStudioEventBus()
+
+    const runningRun = this.runStore
+      ? await this.runStore.update(persistedRun.id, { status: 'running' }) ?? { ...persistedRun, status: 'running' }
+      : { ...persistedRun, status: 'running' as const }
+
+    eventBus.publish({
+      type: 'run_updated',
+      run: runningRun
+    })
+
+    return {
+      input,
+      workContext,
+      run: runningRun,
+      assistantMessage,
+      eventBus
+    }
+  }
+
+  private async executePreparedRun(prepared: StudioPreparedRunContext) {
+    if (hasUsableCustomApiConfig(prepared.input.customApiConfig)) {
+      return this.executeAgentLoop({
+        prepared,
+        customApiConfig: prepared.input.customApiConfig,
+        toolChoice: resolveStudioToolChoice({ session: prepared.input.session, override: prepared.input.toolChoice })
+      })
+    }
+
+    const plan = await this.resolveTurnPlan({
+      projectId: prepared.input.projectId,
+      session: prepared.input.session,
+      run: prepared.run,
+      assistantMessage: prepared.assistantMessage,
+      inputText: prepared.input.inputText,
+      workContext: prepared.workContext
+    })
+
+    return this.executeResolvedPlan({
+      prepared,
+      plan,
+      customApiConfig: prepared.input.customApiConfig,
+      toolChoice: prepared.input.toolChoice
+    })
+  }
+
   private async buildWorkContext(input: {
     session: StudioSession
     inputText: string
@@ -202,40 +262,26 @@ export class StudioSessionRunner {
     }
   }
 
-  private async runWithResolvedPlan(input: {
-    projectId: string
-    session: StudioSession
-    inputText: string
+  private async executeResolvedPlan(input: {
+    prepared: StudioPreparedRunContext
     plan: StudioRuntimeTurnPlan
-    workContext: StudioWorkContext
     customApiConfig?: CustomApiConfig
     toolChoice?: StudioToolChoice
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
-    const run = this.createRun(input.session, input.inputText)
-    const persistedRun = this.runStore ? await this.runStore.create(run) : run
-    await this.messageStore.createUserMessage(createStudioUserMessage({
-      sessionId: input.session.id,
-      text: input.inputText
-    }))
-    const assistantMessage = await this.createAssistantMessage(input.session)
-
-    await this.runStore?.update(persistedRun.id, { status: 'running' })
-
     try {
-      const eventBus = this.sharedEventBus ?? new InMemoryStudioEventBus()
       const outcome = await this.processor.processStream({
-        session: input.session,
-        run: persistedRun,
-        assistantMessage,
-        eventBus,
+        session: input.prepared.input.session,
+        run: input.prepared.run,
+        assistantMessage: input.prepared.assistantMessage,
+        eventBus: input.prepared.eventBus,
         events: createStudioTurnExecutionStream({
-          projectId: input.projectId,
-          session: input.session,
-          run: persistedRun,
-          assistantMessage,
+          projectId: input.prepared.input.projectId,
+          session: input.prepared.input.session,
+          run: input.prepared.run,
+          assistantMessage: input.prepared.assistantMessage,
           plan: input.plan,
           registry: this.registry,
-          eventBus,
+          eventBus: input.prepared.eventBus,
           permissionService: this.permissionService,
           sessionStore: this.sessionStore,
           taskStore: this.taskStore,
@@ -250,7 +296,7 @@ export class StudioSessionRunner {
           resolveSkill: this.resolveSkill,
           setToolMetadata: (callId, metadata) => {
             void this.processor.applyToolMetadata({
-              assistantMessage,
+              assistantMessage: input.prepared.assistantMessage,
               callId,
               title: metadata.title,
               metadata: metadata.metadata
@@ -261,61 +307,47 @@ export class StudioSessionRunner {
       })
 
       return this.finalizeSuccessfulRun({
-        input,
-        run: persistedRun,
-        assistantMessage,
+        input: { session: input.prepared.input.session },
+        run: input.prepared.run,
+        assistantMessage: input.prepared.assistantMessage,
         outcome,
-        eventBus
+        eventBus: input.prepared.eventBus
       })
     } catch (error) {
       return this.handleFailedRun({
-        input,
-        run: persistedRun,
+        input: { session: input.prepared.input.session },
+        run: input.prepared.run,
         error
       })
     }
   }
 
-  private async runWithAgentLoop(input: {
-    projectId: string
-    session: StudioSession
-    inputText: string
+  private async executeAgentLoop(input: {
+    prepared: StudioPreparedRunContext
     customApiConfig: CustomApiConfig
     toolChoice?: StudioToolChoice
-    workContext: StudioWorkContext
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
-    const run = this.createRun(input.session, input.inputText)
-    const persistedRun = this.runStore ? await this.runStore.create(run) : run
-    await this.messageStore.createUserMessage(createStudioUserMessage({
-      sessionId: input.session.id,
-      text: input.inputText
-    }))
-    const assistantMessage = await this.createAssistantMessage(input.session)
-
-    await this.runStore?.update(persistedRun.id, { status: 'running' })
-
     try {
-      const eventBus = this.sharedEventBus ?? new InMemoryStudioEventBus()
       const outcome = await this.processor.processStream({
-        session: input.session,
-        run: persistedRun,
-        assistantMessage,
-        eventBus,
+        session: input.prepared.input.session,
+        run: input.prepared.run,
+        assistantMessage: input.prepared.assistantMessage,
+        eventBus: input.prepared.eventBus,
         events: createStudioOpenAIToolLoop({
-          projectId: input.projectId,
-          session: input.session,
-          run: persistedRun,
-          assistantMessage,
-          inputText: input.inputText,
+          projectId: input.prepared.input.projectId,
+          session: input.prepared.input.session,
+          run: input.prepared.run,
+          assistantMessage: input.prepared.assistantMessage,
+          inputText: input.prepared.input.inputText,
           messageStore: this.messageStore,
           registry: this.registry,
-          eventBus,
+          eventBus: input.prepared.eventBus,
           permissionService: this.permissionService,
           sessionStore: this.sessionStore,
           taskStore: this.taskStore,
           workStore: this.workStore,
           workResultStore: this.workResultStore,
-          workContext: input.workContext,
+          workContext: input.prepared.workContext,
           askForConfirmation: this.askForConfirmation,
           runSubagent: (request) => this.runSubagent({
             ...request,
@@ -325,28 +357,38 @@ export class StudioSessionRunner {
           resolveSkill: this.resolveSkill,
           setToolMetadata: (callId, metadata) => {
             void this.processor.applyToolMetadata({
-              assistantMessage,
+              assistantMessage: input.prepared.assistantMessage,
               callId,
               title: metadata.title,
               metadata: metadata.metadata
             })
           },
           customApiConfig: input.customApiConfig,
-          toolChoice: input.toolChoice
+          toolChoice: input.toolChoice,
+          onCheckpoint: async (patch) => {
+            const nextRun = this.runStore
+              ? await this.runStore.update(input.prepared.run.id, patch) ?? { ...input.prepared.run, ...patch }
+              : { ...input.prepared.run, ...patch }
+            input.prepared.run = nextRun
+            input.prepared.eventBus.publish({
+              type: 'run_updated',
+              run: nextRun
+            })
+          }
         })
       })
 
       return this.finalizeSuccessfulRun({
-        input,
-        run: persistedRun,
-        assistantMessage,
+        input: { session: input.prepared.input.session },
+        run: input.prepared.run,
+        assistantMessage: input.prepared.assistantMessage,
         outcome,
-        eventBus
+        eventBus: input.prepared.eventBus
       })
     } catch (error) {
       return this.handleFailedRun({
-        input,
-        run: persistedRun,
+        input: { session: input.prepared.input.session },
+        run: input.prepared.run,
         error
       })
     }
@@ -417,6 +459,3 @@ function hasUsableCustomApiConfig(config?: CustomApiConfig): config is CustomApi
 
   return [config.apiUrl, config.apiKey, config.model].every((value) => typeof value === 'string' && value.trim().length > 0)
 }
-
-
-

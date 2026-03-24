@@ -1,35 +1,108 @@
 import type OpenAI from 'openai'
-import type { StudioMessage, StudioToolPart } from '../domain/types'
+import type { StudioAssistantMessage, StudioMessage, StudioToolPart } from '../domain/types'
+
+interface StudioStoredAssistantToolCall {
+  id?: string
+  type?: 'function'
+  function?: {
+    name?: string
+    arguments?: string
+  }
+  [key: string]: unknown
+}
+
+interface StudioStoredAssistantPayload {
+  content?: string | Array<Record<string, unknown>> | null
+  tool_calls?: StudioStoredAssistantToolCall[]
+}
 
 export function buildStudioConversationMessages(input: {
   messages: StudioMessage[]
 }): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
-  return input.messages
-    .map(toConversationMessage)
-    .filter((message): message is OpenAI.Chat.Completions.ChatCompletionMessageParam => !!message)
+  return input.messages.flatMap(toConversationMessages)
 }
 
-function toConversationMessage(message: StudioMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam | null {
+function toConversationMessages(message: StudioMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
   if (message.role === 'user') {
-    return {
-      role: 'user',
-      content: message.text
-    }
+    return [{ role: 'user', content: message.text }]
   }
 
   if (message.role !== 'assistant') {
-    return null
+    return []
+  }
+
+  const raw = readStoredAssistantPayload(message)
+  const toolMessages = buildToolMessages(message)
+  if (raw) {
+    return [
+      {
+        role: 'assistant',
+        content: raw.content as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam['content'],
+        tool_calls: raw.tool_calls as OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] | undefined
+      },
+      ...toolMessages
+    ]
   }
 
   const content = flattenAssistantMessage(message)
   if (!content) {
+    return toolMessages
+  }
+
+  return [
+    { role: 'assistant', content },
+    ...toolMessages
+  ]
+}
+
+function buildToolMessages(message: StudioAssistantMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  return message.parts
+    .filter((part): part is StudioToolPart => part.type === 'tool')
+    .flatMap((part) => {
+      if (part.state.status === 'completed') {
+        return [{ role: 'tool', tool_call_id: part.callId, content: part.state.output || '(empty tool result)' }]
+      }
+
+      if (part.state.status === 'error') {
+        return [{ role: 'tool', tool_call_id: part.callId, content: `Tool execution failed: ${part.state.error}` }]
+      }
+
+      return []
+    })
+}
+
+function readStoredAssistantPayload(message: StudioAssistantMessage): {
+  content: string | Array<Record<string, unknown>> | null
+  tool_calls?: StudioStoredAssistantToolCall[]
+} | null {
+  const candidate = message.metadata?.providerMessage
+  if (!candidate || typeof candidate !== 'object') {
+    return null
+  }
+
+  const payload = candidate as StudioStoredAssistantPayload
+  const content = normalizeStoredContent(payload.content)
+  if (content === undefined && !Array.isArray(payload.tool_calls)) {
     return null
   }
 
   return {
-    role: 'assistant',
-    content
+    content: content ?? null,
+    tool_calls: Array.isArray(payload.tool_calls) ? payload.tool_calls : undefined
   }
+}
+
+function normalizeStoredContent(content: unknown): string | Array<Record<string, unknown>> | null | undefined {
+  if (content === null) {
+    return null
+  }
+  if (typeof content === 'string') {
+    return content
+  }
+  if (Array.isArray(content)) {
+    return content.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+  }
+  return undefined
 }
 
 function flattenAssistantMessage(message: Extract<StudioMessage, { role: 'assistant' }>): string {
@@ -51,20 +124,6 @@ function flattenAssistantMessage(message: Extract<StudioMessage, { role: 'assist
     sections.push(text.join('\n\n'))
   }
 
-  const toolOutputs = message.parts
-    .filter((part): part is StudioToolPart => part.type === 'tool' && part.state.status === 'completed')
-    .map((part) => {
-      const state = part.state
-      if (state.status !== 'completed') {
-        return ''
-      }
-      const title = state.title || `Completed ${part.tool}`
-      return [`[tool:${part.tool}] ${title}`, state.output].join('\n')
-    })
-    .filter(Boolean)
-  if (toolOutputs.length) {
-    sections.push(toolOutputs.join('\n\n'))
-  }
-
   return sections.join('\n\n').trim()
 }
+

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createLogger } from '../../utils/logger'
 import { createStudioSession } from '../domain/factories'
 import type {
   StudioEventBus,
@@ -21,6 +22,12 @@ import type { StudioPermissionService } from '../permissions/permission-service'
 import { defaultRulesForLevel } from '../permissions/policy'
 import { resolveStudioPermissionMode, type StudioPermissionMode } from '../session-control/permission-modes'
 import { registerSharedStudioTools } from '../shared/register-shared-tools'
+import {
+  buildStudioContinueInputText,
+  buildStudioContinuationRunMetadata,
+  isStudioRunResumable,
+  readStudioRunAutonomyMetadata,
+} from '../runs/autonomy-policy'
 import { createLocalStudioSkillResolver } from '../skills/local-skill-resolver'
 import type { StudioBlobStore } from '../storage/studio-blob-store'
 import { StudioToolRegistry } from '../tools/registry'
@@ -30,6 +37,8 @@ import { syncStudioRenderTask } from './render-task-sync'
 import { createStudioSessionMetadata } from './session-agent-config'
 import { flushTerminalSessionEventsToAssistant } from './session-event-inbox'
 import type { StudioWorkspaceProvider } from '../workspace/studio-workspace-provider'
+
+const logger = createLogger('StudioRuntimeService')
 
 interface SubscribableStudioEventBus extends StudioEventBus {
   subscribe: (listener: StudioEventListener) => () => void
@@ -74,6 +83,29 @@ export interface StudioRuntimeService {
   updateSession: (sessionId: string, patch: {
     permissionMode?: StudioPermissionMode
   }) => Promise<StudioSession | null>
+  startRun: (input: {
+    projectId: string
+    session: StudioSession
+    inputText: string
+    customApiConfig?: import('../../types').CustomApiConfig
+    toolChoice?: StudioToolChoice
+  }) => Promise<{ run: import('../domain/types').StudioRun; assistantMessage: import('../domain/types').StudioAssistantMessage } | null>
+  continueRun: (input: {
+    projectId: string
+    sourceRunId: string
+    inputText?: string
+    customApiConfig?: import('../../types').CustomApiConfig
+    toolChoice?: StudioToolChoice
+  }) => Promise<{
+    status: 'started'
+    session: StudioSession
+    run: import('../domain/types').StudioRun
+    assistantMessage: import('../domain/types').StudioAssistantMessage
+  } | {
+    status: 'conflict' | 'not_found' | 'not_resumable'
+    session?: StudioSession
+    run?: import('../domain/types').StudioRun
+  }>
   syncSession: (sessionId: string) => Promise<void>
   listWorkResultsBySessionId: (sessionId: string) => Promise<StudioWorkResult[]>
   listExternalEvents: () => StudioExternalEvent[]
@@ -86,6 +118,7 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
   const registry = input.registry ?? new StudioToolRegistry()
   const eventBus: SubscribableStudioEventBus = input.eventBus ?? new InMemoryStudioEventBus()
   const externalEventLog: StudioExternalEvent[] = []
+  const activeSessionRuns = new Map<string, string>()
 
   registerSharedStudioTools(registry)
   registerManimStudioTools(registry)
@@ -116,6 +149,41 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
       externalEventLog.push(adapted)
     }
   })
+
+  async function startBackgroundRunLocked(runInput: {
+    projectId: string
+    session: StudioSession
+    inputText: string
+    customApiConfig?: import('../../types').CustomApiConfig
+    toolChoice?: StudioToolChoice
+    runMetadata?: Record<string, unknown>
+  }) {
+    if (activeSessionRuns.has(runInput.session.id)) {
+      return null
+    }
+
+    const handle = await runtime.startBackgroundRun(runInput)
+    activeSessionRuns.set(runInput.session.id, handle.run.id)
+
+    void handle.completion
+      .catch((error) => {
+        logger.warn('Background studio run failed', {
+          sessionId: runInput.session.id,
+          runId: handle.run.id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      })
+      .finally(() => {
+        if (activeSessionRuns.get(runInput.session.id) === handle.run.id) {
+          activeSessionRuns.delete(runInput.session.id)
+        }
+      })
+
+    return {
+      run: handle.run,
+      assistantMessage: handle.assistantMessage
+    }
+  }
 
   return {
     registry,
@@ -183,6 +251,52 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
       }
 
       return session
+    },
+    async startRun(runInput) {
+      return startBackgroundRunLocked(runInput)
+    },
+    async continueRun(runInput) {
+      const sourceRun = await input.persistence.runStore.getById(runInput.sourceRunId)
+      if (!sourceRun) {
+        return { status: 'not_found' as const }
+      }
+
+      const session = await input.persistence.sessionStore.getById(sourceRun.sessionId)
+      if (!session) {
+        return { status: 'not_found' as const, run: sourceRun }
+      }
+
+      if (!isStudioRunResumable(sourceRun)) {
+        return { status: 'not_resumable' as const, session, run: sourceRun }
+      }
+
+      if (activeSessionRuns.has(session.id)) {
+        return { status: 'conflict' as const, session, run: sourceRun }
+      }
+
+      const autonomy = readStudioRunAutonomyMetadata(sourceRun.metadata)
+      const started = await startBackgroundRunLocked({
+        projectId: runInput.projectId,
+        session,
+        inputText: runInput.inputText?.trim() || buildStudioContinueInputText(autonomy.stopReason),
+        customApiConfig: runInput.customApiConfig,
+        toolChoice: runInput.toolChoice,
+        runMetadata: buildStudioContinuationRunMetadata({
+          sourceRunId: sourceRun.id,
+          sourceMetadata: sourceRun.metadata,
+        }),
+      })
+
+      if (!started) {
+        return { status: 'conflict' as const, session, run: sourceRun }
+      }
+
+      return {
+        status: 'started' as const,
+        session,
+        run: started.run,
+        assistantMessage: started.assistantMessage,
+      }
     },
     async syncSession(sessionId: string): Promise<void> {
       const tasks = await input.persistence.taskStore.listBySessionId(sessionId)

@@ -94,6 +94,7 @@ export interface StudioAssistantMessage extends StudioMessageBase {
   agent: StudioAgentType
   parts: StudioMessagePart[]
   summary?: string
+  metadata?: Record<string, unknown>
 }
 
 export interface StudioUserMessage extends StudioMessageBase {
