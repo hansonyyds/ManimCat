@@ -149,14 +149,16 @@ flowchart LR
     P1 --> P3[生成 / 修改请求]
     P2 --> A1[Workflow API]
     P3 --> A1
-    A1 --> B1[队列 + 任务状态]
-    B1 --> B2[Manim 渲染流水线]
-    B2 --> O1[视频、图片、代码、耗时]
+    A1 --> R1[上游路由 + AI 生成]
+    R1 --> C1[静态检查 + 重试 / 修补循环]
+    C1 --> B1[队列 + 任务状态]
+    B1 --> B2[渲染流水线]
+    B2 --> O1[视频 / 图片 / 代码 / 耗时]
     P1 -. 轮询 / 取消 .-> B1
     O1 --> P1
 
     class P1 ui;
-    class P2,P3 logic;
+    class P2,P3,R1,C1 logic;
     class A1 api;
     class B1,B2 state;
     class O1 output;
@@ -174,17 +176,18 @@ flowchart LR
 
     U[用户指令] --> S1
     S1[Studio 界面] --> A1[Session / Run API]
-    A1 --> R1[Studio Runtime]
-    R1 --> G1[Builder、Designer、Reviewer]
-    G1 --> T1[工具、skills、渲染动作]
-    R1 --> S2[会话状态与工作结果]
-    R1 --> E1[实时事件与权限]
+    A1 --> R1[Studio Runtime Service]
+    R1 --> K1[Manim Studio / Plot Studio]
+    K1 --> G1[Builder、Designer、Reviewer]
+    G1 --> T1[工具、skills、渲染 / 审查动作]
+    R1 --> S2[Session / Run / Task / Work 状态]
+    R1 --> E1[SSE 实时事件 + 权限]
     S2 --> S1
     E1 --> S1
 
     class S1 ui;
     class A1 api;
-    class R1 runtime;
+    class R1,K1 runtime;
     class G1,T1,S2 state;
     class E1 event;
 ```

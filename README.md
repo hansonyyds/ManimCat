@@ -149,14 +149,16 @@ flowchart LR
     P1 --> P3[Generate / Modify requests]
     P2 --> A1[Workflow APIs]
     P3 --> A1
-    A1 --> B1[Queue + job state]
-    B1 --> B2[Manim render pipeline]
-    B2 --> O1[Video, images, code, timings]
+    A1 --> R1[Upstream routing + AI generation]
+    R1 --> C1[Static checks + retry / patch loop]
+    C1 --> B1[Queue + job state]
+    B1 --> B2[Render pipeline]
+    B2 --> O1[Video / images / code / timings]
     P1 -. polling / cancel .-> B1
     O1 --> P1
 
     class P1 ui;
-    class P2,P3 logic;
+    class P2,P3,R1,C1 logic;
     class A1 api;
     class B1,B2 state;
     class O1 output;
@@ -174,17 +176,18 @@ flowchart LR
 
     U[User instruction] --> S1
     S1[Studio UI] --> A1[Session / run APIs]
-    A1 --> R1[Studio runtime]
-    R1 --> G1[Builder, Designer, Reviewer]
-    G1 --> T1[Tools, skills, render actions]
-    R1 --> S2[Session state + work results]
-    R1 --> E1[Live events + permissions]
+    A1 --> R1[Studio runtime service]
+    R1 --> K1[Manim Studio / Plot Studio]
+    K1 --> G1[Builder, Designer, Reviewer]
+    G1 --> T1[Tools, skills, render / review actions]
+    R1 --> S2[Session / run / task / work state]
+    R1 --> E1[SSE events + permissions]
     S2 --> S1
     E1 --> S1
 
     class S1 ui;
     class A1 api;
-    class R1 runtime;
+    class R1,K1 runtime;
     class G1,T1,S2 state;
     class E1 event;
 ```
