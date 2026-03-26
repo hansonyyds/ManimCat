@@ -34,7 +34,16 @@ describe('studioEventReducer', () => {
   })
 
   it('creates optimistic user and assistant messages before the run starts', () => {
-    const state = createInitialStudioState()
+    const state = {
+      ...createInitialStudioState(),
+      runtime: {
+        ...createInitialStudioState().runtime,
+        activeRunId: 'run-old',
+        assistantTextByRunId: {
+          'run-old': '旧卡片内容',
+        },
+      },
+    }
     const userMessage: StudioUserMessage = {
       id: 'local-user-1',
       sessionId: 'session-1',
@@ -53,6 +62,7 @@ describe('studioEventReducer', () => {
 
     expect(next.entities.messageOrder).toEqual(['local-user-1', 'local-assistant-1'])
     expect(next.runtime.pendingAssistantMessageId).toBe('local-assistant-1')
+    expect(next.runtime.activeRunId).toBeNull()
   })
 
   it('writes assistant.text into the optimistic assistant message for the active run', () => {
@@ -161,6 +171,60 @@ describe('studioEventReducer', () => {
     expect(toolPart?.type).toBe('tool')
     expect(toolPart?.tool).toBe('write')
     expect(toolPart?.state.status).toBe('completed')
+  })
+
+  it('keeps existing tool parts when assistant text streams after tool events', () => {
+    const state = {
+      ...createInitialStudioState(),
+      entities: {
+        ...createInitialStudioState().entities,
+        session: createSession(),
+        messagesById: {
+          'local-assistant-1': {
+            ...createAssistantMessage(),
+            parts: [
+              {
+                id: 'tool-1',
+                messageId: 'local-assistant-1',
+                sessionId: 'session-1',
+                type: 'tool',
+                tool: 'write',
+                callId: 'call-1',
+                state: {
+                  status: 'running',
+                  input: { path: 'heart.py' },
+                  time: { start: 1 },
+                },
+              },
+            ],
+          },
+        },
+        messageOrder: ['local-assistant-1'],
+      },
+      runtime: {
+        ...createInitialStudioState().runtime,
+        optimisticAssistantMessageIdByRunId: {
+          'run-1': 'local-assistant-1',
+        },
+      },
+    }
+
+    const next = studioEventReducer(state, {
+      type: 'event_received',
+      event: {
+        type: 'assistant.text',
+        properties: {
+          sessionId: 'session-1',
+          runId: 'run-1',
+          text: '正在处理文件',
+        },
+      },
+    })
+
+    const message = next.entities.messagesById['local-assistant-1']
+    expect(message?.role).toBe('assistant')
+    expect(readFirstAssistantText(message)).toBe('正在处理文件')
+    expect(message?.role === 'assistant' ? message.parts.some((part) => part.type === 'tool') : false).toBe(true)
   })
 
   it('does not let a stale running run overwrite a completed run', () => {

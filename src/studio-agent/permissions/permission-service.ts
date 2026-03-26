@@ -49,7 +49,7 @@ export class StudioPermissionService {
   reply(input: StudioPermissionReply): boolean {
     const pending = this.pending.get(input.requestID)
     if (!pending) {
-      logger.warn('Studio permission reply ignored because request was not found', {
+      logger.warn('工作室权限回复已忽略：未找到对应的权限请求', {
         requestId: input.requestID,
         reply: input.reply
       })

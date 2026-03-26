@@ -7,6 +7,7 @@ import type {
   StudioWork,
   StudioWorkResult,
 } from '../protocol/studio-agent-types'
+import { mergeMessages, preferNewerRun } from '../agent-response/reconciler'
 import type { StudioEntityState, StudioSessionState } from './studio-types'
 
 export function createInitialStudioState(): StudioSessionState {
@@ -175,164 +176,12 @@ function mergeRecord<T extends { id: string }>(current: Record<string, T>, items
   }, { ...current })
 }
 
-function mergeMessages(
-  current: Record<string, StudioMessage>,
-  incoming: StudioMessage[],
-): Record<string, StudioMessage> {
-  const merged = mergeRecord(current, incoming)
-  const incomingServerUserMessages = incoming.filter((message): message is Extract<StudioMessage, { role: 'user' }> => {
-    return message.role === 'user' && !isOptimisticLocalMessageId(message.id)
-  })
-  const incomingServerAssistantMessages = incoming.filter((message): message is Extract<StudioMessage, { role: 'assistant' }> => {
-    return message.role === 'assistant' && !isOptimisticLocalMessageId(message.id)
-  })
-
-  if (incomingServerUserMessages.length > 0) {
-    for (const [messageId, message] of Object.entries(merged)) {
-      if (message.role !== 'user' || !isOptimisticLocalMessageId(messageId)) {
-        continue
-      }
-
-      const matchedServerMessage = incomingServerUserMessages.find((serverMessage) => (
-        serverMessage.text === message.text && isNearSameTimestamp(serverMessage.createdAt, message.createdAt)
-      ))
-
-      if (matchedServerMessage) {
-        merged[matchedServerMessage.id] = {
-          ...matchedServerMessage,
-          createdAt: message.createdAt,
-        }
-        delete merged[messageId]
-      }
-    }
-  }
-
-  if (incomingServerAssistantMessages.length > 0) {
-    const usedAssistantMessageIds = new Set<string>()
-
-    for (const [messageId, message] of Object.entries(merged)) {
-      if (message.role !== 'assistant' || !isOptimisticLocalMessageId(messageId)) {
-        continue
-      }
-
-      const matchedServerMessage = incomingServerAssistantMessages.find((serverMessage) => {
-        if (usedAssistantMessageIds.has(serverMessage.id)) {
-          return false
-        }
-
-        return isNearSameTimestamp(serverMessage.createdAt, message.createdAt, 30000)
-      })
-
-      if (matchedServerMessage) {
-        usedAssistantMessageIds.add(matchedServerMessage.id)
-        merged[matchedServerMessage.id] = {
-          ...matchedServerMessage,
-          createdAt: message.createdAt,
-        }
-        delete merged[messageId]
-      }
-    }
-
-    const remainingOptimisticAssistantEntries = Object.entries(merged)
-      .filter((entry): entry is [string, Extract<StudioMessage, { role: 'assistant' }>] => {
-        const [messageId, message] = entry
-        return message.role === 'assistant' && isOptimisticLocalMessageId(messageId)
-      })
-      .sort(([, left], [, right]) => compareByCreatedAt(left, right))
-
-    const remainingServerAssistantMessages = incomingServerAssistantMessages
-      .filter((message) => !usedAssistantMessageIds.has(message.id))
-      .sort(compareByCreatedAt)
-
-    for (const [messageId, message] of remainingOptimisticAssistantEntries) {
-      const matchedServerMessage = remainingServerAssistantMessages.find((serverMessage) => (
-        isEmptyAssistantPlaceholder(message)
-          || doAssistantMessagesLookEquivalent(message, serverMessage)
-      ))
-      if (!matchedServerMessage) {
-        continue
-      }
-
-      const matchedIndex = remainingServerAssistantMessages.findIndex((candidate) => candidate.id === matchedServerMessage.id)
-      if (matchedIndex >= 0) {
-        remainingServerAssistantMessages.splice(matchedIndex, 1)
-      }
-
-      merged[matchedServerMessage.id] = {
-        ...matchedServerMessage,
-        createdAt: message.createdAt,
-      }
-      delete merged[messageId]
-    }
-  }
-
-  return merged
-}
-
 function mergeRuns(current: Record<string, StudioRun>, incoming: StudioRun[]): Record<string, StudioRun> {
   return incoming.reduce<Record<string, StudioRun>>((next, candidate) => {
     const existing = next[candidate.id]
     next[candidate.id] = existing ? preferNewerRun(existing, candidate) : candidate
     return next
   }, { ...current })
-}
-
-function preferNewerRun(current: StudioRun, incoming: StudioRun): StudioRun {
-  const currentTerminal = isTerminalRunStatus(current.status)
-  const incomingTerminal = isTerminalRunStatus(incoming.status)
-
-  if (currentTerminal && !incomingTerminal) {
-    return current
-  }
-
-  if (!currentTerminal && incomingTerminal) {
-    return incoming
-  }
-
-  const currentCompletedAt = parseTimestamp(current.completedAt)
-  const incomingCompletedAt = parseTimestamp(incoming.completedAt)
-  if (currentCompletedAt !== null || incomingCompletedAt !== null) {
-    if ((currentCompletedAt ?? -1) > (incomingCompletedAt ?? -1)) {
-      return current
-    }
-    if ((incomingCompletedAt ?? -1) > (currentCompletedAt ?? -1)) {
-      return incoming
-    }
-  }
-
-  return incoming
-}
-
-function isEmptyAssistantPlaceholder(message: Extract<StudioMessage, { role: 'assistant' }>): boolean {
-  return !message.parts.some((part) => {
-    if (part.type === 'tool') {
-      return true
-    }
-
-    return Boolean(part.text.trim())
-  })
-}
-
-function doAssistantMessagesLookEquivalent(
-  left: Extract<StudioMessage, { role: 'assistant' }>,
-  right: Extract<StudioMessage, { role: 'assistant' }>,
-): boolean {
-  const leftText = extractAssistantComparableText(left)
-  const rightText = extractAssistantComparableText(right)
-  if (!leftText || !rightText) {
-    return false
-  }
-
-  return leftText === rightText || leftText.includes(rightText) || rightText.includes(leftText)
-}
-
-function extractAssistantComparableText(message: Extract<StudioMessage, { role: 'assistant' }>): string {
-  return message.parts
-    .filter((part) => part.type === 'text' || part.type === 'reasoning')
-    .map((part) => part.text.trim())
-    .filter(Boolean)
-    .join('\n')
-    .trim()
 }
 
 function sortRecordIdsBy<T extends { id: string }>(
@@ -380,25 +229,4 @@ function compareByUpdatedAt<T extends { updatedAt: string }>(left: T, right: T):
 function pickLatestRunId(runs: StudioRun[]): string | null {
   return [...runs]
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0]?.id ?? null
-}
-
-function isOptimisticLocalMessageId(messageId: string): boolean {
-  return messageId.startsWith('local-user-') || messageId.startsWith('local-assistant-')
-}
-
-function isNearSameTimestamp(left: string, right: string, thresholdMs = 5000): boolean {
-  return Math.abs(new Date(left).getTime() - new Date(right).getTime()) < thresholdMs
-}
-
-function isTerminalRunStatus(status: StudioRun['status']): boolean {
-  return status === 'completed' || status === 'failed' || status === 'cancelled'
-}
-
-function parseTimestamp(value?: string): number | null {
-  if (!value) {
-    return null
-  }
-
-  const timestamp = new Date(value).getTime()
-  return Number.isFinite(timestamp) ? timestamp : null
 }

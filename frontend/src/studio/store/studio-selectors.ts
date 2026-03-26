@@ -127,3 +127,143 @@ export function selectIsBusy(state: StudioSessionState): boolean {
   const run = selectLatestRun(state)
   return state.runtime.submitting || state.runtime.replacingSession || Boolean(run && (run.status === 'pending' || run.status === 'running'))
 }
+
+export function createStudioViewSelectors() {
+  const messagesCache = createStableSessionListCache<StudioMessage>()
+  const runsCache = createStableSessionListCache<StudioRun>()
+  const worksCache = createStableSessionListCache<StudioWork>()
+  const pendingPermissionsCache = createStableListCache<StudioSessionState['entities']['pendingPermissionsById'][string]>()
+
+  return {
+    selectStudioMessages(state: StudioSessionState): StudioMessage[] {
+      return selectStableSessionList({
+        state,
+        order: state.entities.messageOrder,
+        getById: (id) => state.entities.messagesById[id],
+        cache: messagesCache,
+      })
+    },
+    selectStudioRuns(state: StudioSessionState): StudioRun[] {
+      return selectStableSessionList({
+        state,
+        order: [...state.entities.runOrder].reverse(),
+        getById: (id) => state.entities.runsById[id],
+        cache: runsCache,
+      })
+    },
+    selectStudioWorks(state: StudioSessionState): StudioWork[] {
+      return selectStableSessionList({
+        state,
+        order: state.entities.workOrder,
+        getById: (id) => state.entities.worksById[id],
+        cache: worksCache,
+      })
+    },
+    selectStudioPendingPermissions(state: StudioSessionState) {
+      return selectStableList({
+        order: state.entities.pendingPermissionOrder,
+        getById: (id) => state.entities.pendingPermissionsById[id],
+        cache: pendingPermissionsCache,
+      })
+    },
+  }
+}
+
+interface StableListCache<T> {
+  ids: string[]
+  items: T[]
+}
+
+interface StableSessionListCache<T extends { sessionId: string }> extends StableListCache<T> {
+  sessionId: string | null
+}
+
+function createStableListCache<T>(): StableListCache<T> {
+  return {
+    ids: [],
+    items: [],
+  }
+}
+
+function createStableSessionListCache<T extends { sessionId: string }>(): StableSessionListCache<T> {
+  return {
+    sessionId: null,
+    ids: [],
+    items: [],
+  }
+}
+
+function selectStableSessionList<T extends { id: string; sessionId: string }>(input: {
+  state: StudioSessionState
+  order: string[]
+  getById: (id: string) => T | undefined
+  cache: StableSessionListCache<T>
+}): T[] {
+  const sessionId = input.state.entities.session?.id ?? null
+  const nextItems: T[] = []
+  const nextIds: string[] = []
+
+  for (const id of input.order) {
+    const item = input.getById(id)
+    if (!item) {
+      continue
+    }
+    if (sessionId && item.sessionId !== sessionId) {
+      continue
+    }
+    nextItems.push(item)
+    nextIds.push(item.id)
+  }
+
+  if (input.cache.sessionId === sessionId && areStableListsEquivalent(input.cache, nextIds, nextItems)) {
+    return input.cache.items
+  }
+
+  input.cache.sessionId = sessionId
+  input.cache.ids = nextIds
+  input.cache.items = nextItems
+  return nextItems
+}
+
+function selectStableList<T extends { id: string }>(input: {
+  order: string[]
+  getById: (id: string) => T | undefined
+  cache: StableListCache<T>
+}): T[] {
+  const nextItems: T[] = []
+  const nextIds: string[] = []
+
+  for (const id of input.order) {
+    const item = input.getById(id)
+    if (!item) {
+      continue
+    }
+    nextItems.push(item)
+    nextIds.push(item.id)
+  }
+
+  if (areStableListsEquivalent(input.cache, nextIds, nextItems)) {
+    return input.cache.items
+  }
+
+  input.cache.ids = nextIds
+  input.cache.items = nextItems
+  return nextItems
+}
+
+function areStableListsEquivalent<T>(cache: StableListCache<T>, nextIds: string[], nextItems: T[]): boolean {
+  if (cache.ids.length !== nextIds.length || cache.items.length !== nextItems.length) {
+    return false
+  }
+
+  for (let index = 0; index < nextIds.length; index += 1) {
+    if (cache.ids[index] !== nextIds[index]) {
+      return false
+    }
+    if (cache.items[index] !== nextItems[index]) {
+      return false
+    }
+  }
+
+  return true
+}

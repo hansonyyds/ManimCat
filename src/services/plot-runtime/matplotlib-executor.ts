@@ -17,14 +17,16 @@ export async function executeMatplotlibRender(input: {
   code: string
 }): Promise<MatplotlibExecutionResult> {
   const outputDir = join(input.workspaceDirectory, 'renders', input.renderId)
+  const matplotlibConfigDir = join(input.workspaceDirectory, '.cache', 'matplotlib')
   await mkdir(outputDir, { recursive: true })
+  await mkdir(matplotlibConfigDir, { recursive: true })
 
   const sourcePath = join(outputDir, 'plot_script.py')
   const wrapperPath = join(outputDir, 'plot_executor.py')
   await writeFile(sourcePath, input.code, 'utf8')
   await writeFile(wrapperPath, buildExecutorScript(), 'utf8')
 
-  const { stdout, stderr } = await runPython(wrapperPath, [sourcePath, outputDir])
+  const { stdout, stderr } = await runPython(wrapperPath, [sourcePath, outputDir, matplotlibConfigDir])
   const parsedImagePaths = parseJsonLine(stdout, 'PLOT_OUTPUTS_JSON=') as string[] | undefined
   const imagePaths = Array.isArray(parsedImagePaths) && parsedImagePaths.length > 0
     ? parsedImagePaths
@@ -77,11 +79,12 @@ async function runPython(scriptPath: string, args: string[]): Promise<{ stdout: 
 
 function spawnProcess(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
+    const matplotlibConfigDir = command === 'py' ? args[3] : args[2]
     const child = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        MPLCONFIGDIR: args[2] ?? process.env.MPLCONFIGDIR,
+        MPLCONFIGDIR: matplotlibConfigDir ?? process.env.MPLCONFIGDIR,
       },
     })
     let stdout = ''
@@ -125,6 +128,10 @@ function buildExecutorScript(): string {
     '',
     'source_path = sys.argv[1]',
     'output_dir = sys.argv[2]',
+    'mpl_config_dir = sys.argv[3] if len(sys.argv) > 3 else None',
+    'if mpl_config_dir:',
+    '    os.makedirs(mpl_config_dir, exist_ok=True)',
+    '    os.environ["MPLCONFIGDIR"] = mpl_config_dir',
     'os.makedirs(output_dir, exist_ok=True)',
     'os.chdir(output_dir)',
     "namespace = {'plt': plt, '__name__': '__main__', '__file__': source_path}",

@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { StudioMessage, StudioSession } from '../protocol/studio-agent-types'
 import { useI18n } from '../../i18n'
+import { shouldHideDuplicateOptimisticAssistant } from '../agent-response/visibility'
 import { StudioMarkdown } from './StudioMarkdown'
 
 interface StudioCommandPanelProps {
@@ -61,6 +62,10 @@ export function StudioCommandPanel({
       return true
     }
 
+    if (shouldHideDuplicateOptimisticAssistant(messages, index)) {
+      return false
+    }
+
     return shouldRenderAssistantMessage(message, {
       isLast: index === messages.length - 1,
       isBusy,
@@ -71,7 +76,6 @@ export function StudioCommandPanel({
     const signature = [
       messages.length,
       lastMessage?.id ?? '',
-      latestAssistantText.length,
       isBusy ? 'busy' : 'idle',
     ].join(':')
 
@@ -81,9 +85,9 @@ export function StudioCommandPanel({
 
     lastScrollSignatureRef.current = signature
     if (typeof endRef.current?.scrollIntoView === 'function') {
-      endRef.current.scrollIntoView({ block: 'end' })
+      endRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' })
     }
-  }, [isBusy, lastMessage?.id, latestAssistantText.length, messages.length])
+  }, [isBusy, lastMessage?.id, messages.length])
 
   useEffect(() => {
     if (!disabled) {
@@ -271,7 +275,7 @@ const UserMessageItem = memo(function UserMessageItem({
 }) {
   const { t } = useI18n()
   return (
-    <div className="animate-fade-in-soft group">
+    <div className="animate-message-enter group">
       <div className="rounded-2xl bg-bg-secondary/20 px-6 py-5 transition-colors group-hover:bg-bg-secondary/40">
         <div className="mb-4 flex items-center gap-3">
           <span className="font-mono text-[9px] font-bold uppercase tracking-[0.3em] text-text-secondary/35">{t('studio.inputUser')}</span>
@@ -304,7 +308,7 @@ const AssistantMessageItem = memo(function AssistantMessageItem({
   const hasRenderableText = textParts.some((part) => part.text.trim())
 
   return (
-    <div className={`${isStreamingTarget ? '' : 'animate-fade-in-soft '}group`}>
+    <div className={`${isStreamingTarget ? '' : 'animate-message-enter '}group`}>
       <div className="rounded-2xl bg-bg-tertiary/40 px-6 py-6 transition-colors group-hover:bg-bg-tertiary/60">
         <div className="mb-5 flex items-center gap-3">
           <span className="font-mono text-[9px] font-bold uppercase tracking-[0.3em] text-text-primary/45">{t('studio.outputAgent')}</span>
@@ -312,22 +316,6 @@ const AssistantMessageItem = memo(function AssistantMessageItem({
         </div>
         
         <div className="space-y-6">
-          {toolParts.length > 0 && (
-            <div className="mb-4 space-y-2.5">
-              {toolParts.map((part, i) => {
-                const status = part.state.status === 'error' ? '!' : part.state.status === 'completed' ? '->' : '...'
-                const args = 'input' in part.state ? truncateArgs(part.state.input) : ''
-                return (
-                  <div key={i} className={`font-mono text-[10px] tracking-tight ${neutralToolTone(part.state.status)} flex items-center gap-3`}>
-                    <span className="flex h-4 w-4 items-center justify-center bg-text-primary/5 font-bold">{status}</span>
-                    <span className="font-bold uppercase tracking-wider">{part.tool}</span>
-                    <span className="truncate opacity-30">({args})</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
           {isStreamingTarget && hasStreamedText ? (
             <StudioMarkdown
               content={streamedText}
@@ -358,6 +346,22 @@ const AssistantMessageItem = memo(function AssistantMessageItem({
           {!isStreamingTarget && !hasRenderableText && (
             <div className="text-[13px] text-text-secondary/30">
               {t('studio.noResponseOutput')}
+            </div>
+          )}
+
+          {toolParts.length > 0 && (
+            <div className="space-y-2.5 border-t border-border/10 pt-4">
+              {toolParts.map((part, i) => {
+                const status = part.state.status === 'error' ? '!' : part.state.status === 'completed' ? '->' : '...'
+                const args = 'input' in part.state ? truncateArgs(part.state.input) : ''
+                return (
+                  <div key={i} className={`font-mono text-[10px] tracking-tight ${neutralToolTone(part.state.status)} flex items-center gap-3`}>
+                    <span className="flex h-4 w-4 items-center justify-center bg-text-primary/5 font-bold">{status}</span>
+                    <span className="font-bold uppercase tracking-wider">{part.tool}</span>
+                    <span className="truncate opacity-30">({args})</span>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

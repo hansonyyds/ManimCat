@@ -14,6 +14,7 @@ import { studioEventReducer } from '../store/studio-event-reducer'
 import { createInitialStudioState } from '../store/studio-session-store'
 import { useI18n } from '../../i18n'
 import {
+  createStudioViewSelectors,
   selectLatestAssistantText,
   selectLatestRun,
   selectLatestTaskForWork,
@@ -38,6 +39,8 @@ export function useStudioSession(options: UseStudioSessionOptions = {}) {
   const [state, dispatch] = useReducer(studioEventReducer, undefined, createInitialStudioState)
   const bootstrappedRef = useRef(false)
   const refreshInFlightRef = useRef(false)
+  const viewSelectorsRef = useRef(createStudioViewSelectors())
+  const viewSelectors = viewSelectorsRef.current
 
   const loadSnapshot = useCallback(async (
     sessionId: string,
@@ -189,7 +192,7 @@ export function useStudioSession(options: UseStudioSessionOptions = {}) {
         type: 'snapshot_loaded',
         snapshot: {
           ...snapshot,
-          runs: [...selectStudioRuns(state), ...snapshot.runs],
+          runs: [...viewSelectors.selectStudioRuns(state), ...snapshot.runs],
         },
         pendingPermissions,
       })
@@ -232,20 +235,25 @@ export function useStudioSession(options: UseStudioSessionOptions = {}) {
     getFallbackRequests: () => selectStudioPendingPermissions(state),
   })
 
+  const messages = viewSelectors.selectStudioMessages(state)
+  const runs = viewSelectors.selectStudioRuns(state)
+  const works = viewSelectors.selectStudioWorks(state)
+  const pendingPermissions = viewSelectors.selectStudioPendingPermissions(state)
+
   return {
     state,
     session: state.entities.session,
-    messages: selectStudioMessages(state),
-    runs: selectStudioRuns(state),
-    works: selectStudioWorks(state),
-    pendingPermissions: selectStudioPendingPermissions(state),
+    messages,
+    runs,
+    works,
+    pendingPermissions,
     latestRun: selectLatestRun(state),
     latestAssistantText: selectLatestAssistantText(state),
     isBusy: selectIsBusy(state),
     replyingPermissionIds: state.runtime.replyingPermissionIds,
     latestQuestion: state.runtime.latestQuestion,
     permissionModeModal: controls.permissionModeModal,
-    workSummaries: selectStudioWorks(state).map((work) => ({
+    workSummaries: works.map((work) => ({
       work,
       latestTask: selectLatestTaskForWork(state, work.id),
       result: selectWorkSummary(state, work).result,

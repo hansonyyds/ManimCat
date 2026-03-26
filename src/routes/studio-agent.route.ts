@@ -122,10 +122,16 @@ router.get('/studio-agent/works/:sessionId', authMiddleware, asyncHandler(async 
 }))
 
 router.get('/studio-agent/events', authMiddleware, asyncHandler(async (req, res) => {
+  const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache, no-transform')
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders?.()
+
+  logPlotStudioTiming('plot', 'events.client.connected', {
+    sessionId: sessionId ?? null,
+    backlogSize: studioRuntime.listExternalEvents().length,
+  })
 
   const backlog = studioRuntime.listExternalEvents()
   for (const event of backlog) {
@@ -149,6 +155,9 @@ router.get('/studio-agent/events', authMiddleware, asyncHandler(async (req, res)
   req.on('close', () => {
     clearInterval(heartbeat)
     unsubscribe()
+    logPlotStudioTiming('plot', 'events.client.disconnected', {
+      sessionId: sessionId ?? null,
+    })
     res.end()
   })
 }))
@@ -193,7 +202,7 @@ router.post('/studio-agent/runs', authMiddleware, asyncHandler(async (req, res) 
   })
 
   if (!started) {
-    logger.warn('Studio run rejected because another run is active', {
+    logger.warn('工作室运行被拒绝：当前 session 已有运行中的任务', {
       sessionId,
     })
     return sendStudioError(res, 409, 'WORK_CONFLICT', 'A studio run is already active for this session', {

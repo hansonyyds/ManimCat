@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { StudioCommandPanel } from './StudioCommandPanel'
 import type { StudioMessage, StudioSession } from '../protocol/studio-agent-types'
@@ -142,6 +142,44 @@ describe('StudioCommandPanel', () => {
     }
   })
 
+  it('does not auto-scroll again when only latest assistant text grows during streaming', async () => {
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView
+    const scrollIntoView = vi.fn()
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView
+
+    try {
+      const { rerender } = render(
+        <StudioCommandPanel
+          session={createSession()}
+          messages={[createAssistantMessage()]}
+          latestAssistantText="你"
+          isBusy
+          disabled={false}
+          onRun={vi.fn()}
+          onExit={vi.fn()}
+        />,
+      )
+
+      const initialCalls = scrollIntoView.mock.calls.length
+
+      rerender(
+        <StudioCommandPanel
+          session={createSession()}
+          messages={[createAssistantMessage()]}
+          latestAssistantText="你好，世界"
+          isBusy
+          disabled={false}
+          onRun={vi.fn()}
+          onExit={vi.fn()}
+        />,
+      )
+
+      expect(scrollIntoView.mock.calls.length).toBe(initialCalls)
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView
+    }
+  })
+
   it('hides stale empty assistant placeholders once a real assistant reply exists', () => {
     const now = '2026-03-22T00:00:00.000Z'
     render(
@@ -185,6 +223,194 @@ describe('StudioCommandPanel', () => {
 
     expect(screen.getByText('正式回复')).toBeInTheDocument()
     expect(screen.queryByText('暂无响应输出')).not.toBeInTheDocument()
+  })
+
+  it('hides a duplicated optimistic assistant message once the server reply with equivalent text arrives', () => {
+    const now = '2026-03-22T00:00:00.000Z'
+    const view = render(
+      <StudioCommandPanel
+        session={createSession()}
+        messages={[
+          {
+            id: 'local-assistant-1',
+            sessionId: 'session-1',
+            role: 'assistant',
+            agent: 'builder',
+            parts: [
+              {
+                id: 'part-local-1',
+                messageId: 'local-assistant-1',
+                sessionId: 'session-1',
+                type: 'text',
+                text: '这是同一条回复',
+              },
+            ],
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: 'server-assistant-1',
+            sessionId: 'session-1',
+            role: 'assistant',
+            agent: 'builder',
+            parts: [
+              {
+                id: 'part-server-1',
+                messageId: 'server-assistant-1',
+                sessionId: 'session-1',
+                type: 'text',
+                text: '这是同一条回复\n\n补充一点说明。',
+              },
+            ],
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]}
+        latestAssistantText=""
+        isBusy={false}
+        disabled={false}
+        onRun={vi.fn()}
+        onExit={vi.fn()}
+      />,
+    )
+
+    expect(within(view.container).getAllByText(/这是同一条回复/)).toHaveLength(1)
+  })
+
+  it('hides duplicated assistant cards when tool call and text are identical', () => {
+    const now = '2026-03-22T00:00:00.000Z'
+    const view = render(
+      <StudioCommandPanel
+        session={createSession()}
+        messages={[
+          {
+            id: 'message-dup-1',
+            sessionId: 'session-1',
+            role: 'assistant',
+            agent: 'builder',
+            parts: [
+              {
+                id: 'tool-1',
+                messageId: 'message-dup-1',
+                sessionId: 'session-1',
+                type: 'tool',
+                tool: 'write',
+                callId: 'call-1',
+                state: {
+                  status: 'completed',
+                  input: { path: 'triangle_sss.py', content: 'import matplotlib.pyplot as plt' },
+                  output: 'ok',
+                  title: 'Completed write',
+                  time: { start: 1, end: 2 },
+                },
+              },
+              {
+                id: 'text-1',
+                messageId: 'message-dup-1',
+                sessionId: 'session-1',
+                type: 'text',
+                text: '我来为你制作几个关于全等三角形的教学图片，包括常见的几种全等判定方法。',
+              },
+            ],
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: 'message-dup-2',
+            sessionId: 'session-1',
+            role: 'assistant',
+            agent: 'builder',
+            parts: [
+              {
+                id: 'tool-2',
+                messageId: 'message-dup-2',
+                sessionId: 'session-1',
+                type: 'tool',
+                tool: 'write',
+                callId: 'call-2',
+                state: {
+                  status: 'completed',
+                  input: { path: 'triangle_sss.py', content: 'import matplotlib.pyplot as plt' },
+                  output: 'ok',
+                  title: 'Completed write',
+                  time: { start: 3, end: 4 },
+                },
+              },
+              {
+                id: 'text-2',
+                messageId: 'message-dup-2',
+                sessionId: 'session-1',
+                type: 'text',
+                text: '我来为你制作几个关于全等三角形的教学图片，包括常见的几种全等判定方法。',
+              },
+            ],
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]}
+        latestAssistantText=""
+        isBusy={false}
+        disabled={false}
+        onRun={vi.fn()}
+        onExit={vi.fn()}
+      />,
+    )
+
+    expect(within(view.container).getAllByText(/我来为你制作几个关于全等三角形的教学图片/)).toHaveLength(1)
+    expect(within(view.container).getAllByText(/write/i)).toHaveLength(1)
+  })
+
+  it('renders assistant text before the tool status line in the same bubble', () => {
+    const now = '2026-03-22T00:00:00.000Z'
+    const { container } = render(
+      <StudioCommandPanel
+        session={createSession()}
+        messages={[
+          {
+            id: 'message-1',
+            sessionId: 'session-1',
+            role: 'assistant',
+            agent: 'builder',
+            parts: [
+              {
+                id: 'tool-1',
+                messageId: 'message-1',
+                sessionId: 'session-1',
+                type: 'tool',
+                tool: 'write',
+                callId: 'call-1',
+                state: {
+                  status: 'running',
+                  input: { path: 'triangle_sss.py' },
+                  time: { start: 1 },
+                },
+              },
+              {
+                id: 'text-1',
+                messageId: 'message-1',
+                sessionId: 'session-1',
+                type: 'text',
+                text: '我来为你制作图片。',
+              },
+            ],
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]}
+        latestAssistantText=""
+        isBusy={false}
+        disabled={false}
+        onRun={vi.fn()}
+        onExit={vi.fn()}
+      />,
+    )
+
+    const bubble = container.querySelector('.rounded-2xl.bg-bg-tertiary\\/40')
+    expect(bubble).not.toBeNull()
+    const textIndex = bubble?.textContent?.indexOf('我来为你制作图片。') ?? -1
+    const toolIndex = bubble?.textContent?.toLowerCase().indexOf('write') ?? -1
+    expect(textIndex).toBeGreaterThanOrEqual(0)
+    expect(toolIndex).toBeGreaterThan(textIndex)
   })
 
   it('renders markdown and math in studio messages', () => {

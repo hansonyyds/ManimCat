@@ -16,6 +16,13 @@ import {
   upsertWorkResults,
   upsertWorks,
 } from './studio-session-store'
+import { debugStudioMessages } from '../agent-response/debug'
+import {
+  applyAssistantTextEvent,
+  applyToolCallEvent,
+  applyToolInputStartEvent,
+  applyToolResultEvent,
+} from '../agent-response/streaming'
 import type { StudioSessionState } from './studio-types'
 
 export type StudioStateAction =
@@ -113,11 +120,16 @@ export function studioEventReducer(
     case 'event_received':
       return applyStudioExternalEvent(state, action.event)
     case 'optimistic_messages_created':
+      debugStudioMessages('optimistic-messages-created', {
+        userMessageId: action.userMessage.id,
+        assistantMessageId: action.assistantMessage.id,
+      })
       return {
         ...state,
         entities: upsertMessages(state.entities, [action.userMessage, action.assistantMessage]),
         runtime: {
           ...state.runtime,
+          activeRunId: null,
           pendingAssistantMessageId: action.assistantMessage.id,
         },
       }
@@ -130,6 +142,10 @@ export function studioEventReducer(
         },
       }
     case 'run_started':
+      debugStudioMessages('run-started', {
+        runId: action.run.id,
+        optimisticAssistantMessageId: state.runtime.pendingAssistantMessageId,
+      })
       return {
         ...state,
         entities: replacePendingPermissions(
@@ -284,163 +300,10 @@ function applyStudioExternalEvent(state: StudioSessionState, event: StudioExtern
   }
 }
 
-function applyAssistantTextEvent(
-  state: StudioSessionState,
-  runId: string,
-  text: string,
-): StudioSessionState {
-  const assistantMessageId = state.runtime.optimisticAssistantMessageIdByRunId[runId]
-  const entities = assistantMessageId
-    ? upsertMessages(state.entities, [buildStreamingAssistantMessage(state, assistantMessageId, text)])
-    : state.entities
-
-  return {
-    ...state,
-    entities,
-    runtime: {
-      ...state.runtime,
-      activeRunId: runId,
-      submitting: false,
-      assistantTextByRunId: {
-        ...state.runtime.assistantTextByRunId,
-        [runId]: text,
-      },
-    },
-  }
-}
-
-function applyToolInputStartEvent(
-  state: StudioSessionState,
-  runId: string,
-  callId: string,
-  toolName: string,
-  raw: string,
-): StudioSessionState {
-  const assistantMessageId = state.runtime.optimisticAssistantMessageIdByRunId[runId]
-  if (!assistantMessageId) {
-    return state
-  }
-
-  const message = ensureAssistantMessage(state, assistantMessageId)
-  const nextPart = {
-    id: `${assistantMessageId}-${callId}`,
-    messageId: assistantMessageId,
-    sessionId: message.sessionId,
-    type: 'tool' as const,
-    tool: toolName,
-    callId,
-    state: {
-      status: 'pending' as const,
-      input: {},
-      raw,
-    },
-  }
-
-  return {
-    ...state,
-    entities: upsertMessages(state.entities, [{
-      ...message,
-      updatedAt: new Date().toISOString(),
-      parts: replaceToolPart(message.parts, nextPart),
-    }]),
-  }
-}
-
-function applyToolCallEvent(
-  state: StudioSessionState,
-  runId: string,
-  callId: string,
-  toolName: string,
-  input: Record<string, unknown>,
-): StudioSessionState {
-  const assistantMessageId = state.runtime.optimisticAssistantMessageIdByRunId[runId]
-  if (!assistantMessageId) {
-    return state
-  }
-
-  const message = ensureAssistantMessage(state, assistantMessageId)
-  const existingPart = findToolPart(message.parts, callId)
-  const nextPart = {
-    id: existingPart?.id ?? `${assistantMessageId}-${callId}`,
-    messageId: assistantMessageId,
-    sessionId: message.sessionId,
-    type: 'tool' as const,
-    tool: toolName,
-    callId,
-    state: {
-      status: 'running' as const,
-      input,
-      title: undefined,
-      metadata: undefined,
-      time: { start: Date.now() },
-    },
-  }
-
-  return {
-    ...state,
-    entities: upsertMessages(state.entities, [{
-      ...message,
-      updatedAt: new Date().toISOString(),
-      parts: replaceToolPart(message.parts, nextPart),
-    }]),
-  }
-}
-
-function applyToolResultEvent(
-  state: StudioSessionState,
-  runId: string,
-  callId: string,
-  toolName: string,
-  result: Extract<StudioExternalEvent, { type: 'tool.result' }>['properties'],
-): StudioSessionState {
-  const assistantMessageId = state.runtime.optimisticAssistantMessageIdByRunId[runId]
-  if (!assistantMessageId) {
-    return state
-  }
-
-  const message = ensureAssistantMessage(state, assistantMessageId)
-  const existingPart = findToolPart(message.parts, callId)
-  const runningInput = existingPart?.type === 'tool' && 'input' in existingPart.state ? existingPart.state.input : {}
-  const nextPart = {
-    id: existingPart?.id ?? `${assistantMessageId}-${callId}`,
-    messageId: assistantMessageId,
-    sessionId: message.sessionId,
-    type: 'tool' as const,
-    tool: toolName,
-    callId,
-    state: result.status === 'failed'
-      ? {
-        status: 'error' as const,
-        input: runningInput,
-        error: result.error ?? `Tool failed: ${toolName}`,
-        metadata: result.metadata,
-        time: { start: Date.now(), end: Date.now() },
-      }
-      : {
-        status: 'completed' as const,
-        input: runningInput,
-        output: result.output ?? '',
-        title: result.title ?? `Completed ${toolName}`,
-        metadata: result.metadata,
-        attachments: result.attachments,
-        time: { start: Date.now(), end: Date.now() },
-      },
-  }
-
-  return {
-    ...state,
-    entities: upsertMessages(state.entities, [{
-      ...message,
-      updatedAt: new Date().toISOString(),
-      parts: replaceToolPart(message.parts, nextPart),
-    }]),
-  }
-}
-
-function buildStreamingAssistantMessage(
+function buildFailedAssistantMessage(
   state: StudioSessionState,
   messageId: string,
-  text: string,
+  error: string,
 ): StudioAssistantMessage {
   const existing = state.entities.messagesById[messageId]
   if (existing?.role === 'assistant') {
@@ -453,8 +316,9 @@ function buildStreamingAssistantMessage(
           messageId,
           sessionId: existing.sessionId,
           type: 'text',
-          text,
+          text: error,
         },
+        ...existing.parts.filter((part) => part.type !== 'text'),
       ],
     }
   }
@@ -473,18 +337,10 @@ function buildStreamingAssistantMessage(
         messageId,
         sessionId,
         type: 'text',
-        text,
+        text: error,
       },
     ],
   }
-}
-
-function buildFailedAssistantMessage(
-  state: StudioSessionState,
-  messageId: string,
-  error: string,
-): StudioAssistantMessage {
-  return buildStreamingAssistantMessage(state, messageId, error)
 }
 
 function uniqPermissions(requests: StudioPermissionRequest[]): StudioPermissionRequest[] {
@@ -493,37 +349,4 @@ function uniqPermissions(requests: StudioPermissionRequest[]): StudioPermissionR
     byId.set(request.id, request)
   }
   return [...byId.values()]
-}
-
-function ensureAssistantMessage(state: StudioSessionState, messageId: string): StudioAssistantMessage {
-  const existing = state.entities.messagesById[messageId]
-  if (existing?.role === 'assistant') {
-    return existing
-  }
-
-  const sessionId = state.entities.session?.id ?? ''
-  return {
-    id: messageId,
-    sessionId,
-    role: 'assistant',
-    agent: 'builder',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    parts: [],
-  }
-}
-
-function findToolPart(parts: StudioAssistantMessage['parts'], callId: string) {
-  return [...parts].reverse().find((part) => part.type === 'tool' && part.callId === callId) ?? null
-}
-
-function replaceToolPart(parts: StudioAssistantMessage['parts'], nextPart: Extract<StudioAssistantMessage['parts'][number], { type: 'tool' }>) {
-  const index = parts.findIndex((part) => part.type === 'tool' && part.callId === nextPart.callId)
-  if (index === -1) {
-    return [...parts, nextPart]
-  }
-
-  const nextParts = [...parts]
-  nextParts[index] = nextPart
-  return nextParts
 }
