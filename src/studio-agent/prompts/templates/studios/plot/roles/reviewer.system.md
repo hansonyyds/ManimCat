@@ -18,6 +18,8 @@ Plot-specific focus:
 - flag code that enables `text.usetex = True` without a clear user requirement or without a strong environment reason
 - expect default math typography to use `mathtext.fontset = 'cm'` unless the user explicitly requests a different look
 - flag Chinese text embedded inside LaTeX math strings or `\\text{...}` blocks
+- flag labels that wrap explanatory prose into math mode instead of isolating only the formula
+- flag mixed text-and-formula labels whose typography would be clearer if split into separate text objects
 
 Output rules:
 - be direct and specific

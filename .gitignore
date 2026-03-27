@@ -24,6 +24,7 @@ static/gifs/
 
 # Logs
 *.log
+dump.rdb
 
 # OS files
 .DS_Store

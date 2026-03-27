@@ -93,16 +93,6 @@ export function ImageLightbox({
   }, [shouldRender]);
 
   useEffect(() => {
-    console.debug('[image-lightbox] render-state', {
-      isOpen,
-      shouldRender,
-      variant,
-      zoom,
-      activeImage,
-    });
-  }, [activeImage, isOpen, shouldRender, variant, zoom]);
-
-  useEffect(() => {
     if (!shouldRender) {
       return undefined;
     }
@@ -121,12 +111,6 @@ export function ImageLightbox({
 
   const handleStepZoom = (delta: number) => {
     const nextZoom = roundZoom(clampZoom(zoom + delta, minZoom, maxZoom));
-    console.debug('[image-lightbox] step-zoom', {
-      variant,
-      currentZoom: zoom,
-      delta,
-      nextZoom,
-    });
     onZoomChange(nextZoom);
   };
 
@@ -136,28 +120,11 @@ export function ImageLightbox({
     const image = imageRef.current;
     const viewport = viewportRef.current;
     if (!image || !viewport) {
-      console.debug('[image-lightbox] wheel-ignored-missing-refs', {
-        variant,
-        hasImage: Boolean(image),
-        hasViewport: Boolean(viewport),
-      });
       return;
     }
 
     const nextZoom = roundZoom(clampZoom(zoom + (event.deltaY < 0 ? 0.12 : -0.12), minZoom, maxZoom));
-    console.debug('[image-lightbox] wheel', {
-      variant,
-      deltaY: event.deltaY,
-      currentZoom: zoom,
-      nextZoom,
-      minZoom,
-      maxZoom,
-    });
     if (nextZoom === zoom) {
-      console.debug('[image-lightbox] wheel-noop', {
-        variant,
-        zoom,
-      });
       return;
     }
 
@@ -172,12 +139,6 @@ export function ImageLightbox({
     const zoomRatio = nextZoom / Math.max(zoom, 0.0001);
 
     setTransformOrigin(`${originX} ${originY}`);
-    console.debug('[image-lightbox] wheel-apply', {
-      variant,
-      originX,
-      originY,
-      nextZoom,
-    });
     onZoomChange(nextZoom);
 
     window.requestAnimationFrame(() => {
@@ -195,10 +156,6 @@ export function ImageLightbox({
 
     const viewport = viewportRef.current;
     if (!viewport) {
-      console.debug('[image-lightbox] native-wheel-bind-skipped', {
-        variant,
-        reason: 'missing-viewport',
-      });
       return undefined;
     }
 
@@ -207,11 +164,9 @@ export function ImageLightbox({
     };
 
     viewport.addEventListener('wheel', handleNativeWheel, { passive: false });
-    console.debug('[image-lightbox] native-wheel-bound', { variant });
 
     return () => {
       viewport.removeEventListener('wheel', handleNativeWheel);
-      console.debug('[image-lightbox] native-wheel-unbound', { variant });
     };
   }, [handleStudioWheel, shouldRender, variant]);
 

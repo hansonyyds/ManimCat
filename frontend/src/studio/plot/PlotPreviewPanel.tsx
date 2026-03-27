@@ -86,14 +86,6 @@ export function PlotPreviewPanel({
   }, [lightboxOpen])
 
   useEffect(() => {
-    console.debug('[plot-preview] lightbox-state', {
-      lightboxOpen,
-      zoom,
-      previewPath: previewAttachment?.path ?? null,
-    })
-  }, [lightboxOpen, previewAttachment?.path, zoom])
-
-  useEffect(() => {
     setSelectedImageIndex(0)
   }, [selectedWorkId, result?.id])
 

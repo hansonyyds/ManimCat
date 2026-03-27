@@ -1,6 +1,10 @@
 import { createLogger } from '../../utils/logger'
 
 const logger = createLogger('PlotStudioTiming')
+const IMPORTANT_PLOT_STUDIO_EVENTS = new Set([
+  'tool.completed',
+  'tool.failed',
+])
 
 const PLOT_STUDIO_EVENT_LABELS: Record<string, string> = {
   'http.run.requested': '绘图工作室：收到运行请求',
@@ -33,6 +37,9 @@ export function logPlotStudioTiming(
   level: 'info' | 'warn' = 'info'
 ): void {
   if (!isPlotStudioKind(studioKind)) {
+    return
+  }
+  if (!IMPORTANT_PLOT_STUDIO_EVENTS.has(event)) {
     return
   }
 

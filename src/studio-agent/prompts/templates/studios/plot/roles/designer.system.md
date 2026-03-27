@@ -17,3 +17,5 @@ Plot Studio rules:
 - when Chinese text is expected, plan for explicit matplotlib font fallback configuration in the script rather than assuming machine-wide matplotlibrc changes
 - when formulas are expected, plan for `mathtext.fontset = 'cm'` by default and avoid assuming `text.usetex = True`
 - when Chinese text and formulas appear together, keep Chinese outside LaTeX strings and plan the label structure accordingly
+- when English explanatory text and formulas appear together, keep prose outside math mode and isolate only the mathematical part inside `$...$`
+- when mixed text becomes visually awkward in a single label, plan separate text objects instead of a single overloaded string
