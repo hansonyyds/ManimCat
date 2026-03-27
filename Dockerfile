@@ -13,11 +13,12 @@ USER root
 COPY --from=node_base /usr/local/bin /usr/local/bin
 COPY --from=node_base /usr/local/lib/node_modules /usr/local/lib/node_modules
 
-# 2. 【关键】安装 Redis 和 中文字体 (fonts-noto-cjk)
+# 2. 【关键】安装 Redis 和中文字体，并刷新字体缓存
 # 使用阿里云源加速
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
     apt-get update && \
-    apt-get install -y redis-server fonts-noto-cjk ffmpeg curl ca-certificates
+    apt-get install -y redis-server fontconfig fonts-noto-cjk fonts-noto-cjk-extra ffmpeg curl ca-certificates && \
+    fc-cache -f -v
 
 # 2.1 安装 Python 运行时与静态检查依赖
 #     显式声明 matplotlib，避免依赖基础镜像的隐式预装状态。
