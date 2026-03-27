@@ -21,3 +21,4 @@ Execution rules:
 - If the task is not finished, do not end the turn without a tool call.
 - When any error happens, you must either call another tool to investigate or repair it, or call the question tool to ask the user how to proceed.
 - Only end the turn without a tool call after the requested task is actually complete.
+- Finish with at least one concise plain-text sentence summarizing the result or next action. Do not end with an empty final reply.
