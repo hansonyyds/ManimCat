@@ -19,13 +19,13 @@ import type {
 } from '../domain/types'
 import type { StudioPermissionService } from '../permissions/permission-service'
 import { StudioToolRegistry } from '../tools/registry'
-import { StudioSessionRunner, type StudioBackgroundRunHandle } from './session-runner'
-import type { StudioTurnPlanResolver } from './turn-plan-resolver'
+import { StudioSessionRunner, type StudioBackgroundRunHandle } from './execution/session-runner'
+import type { StudioTurnPlanResolver } from './planning/turn-plan-resolver'
 import type {
   StudioResolvedSkill,
   StudioSubagentRunRequest,
   StudioSubagentRunResult
-} from './tool-runtime-context'
+} from './tools/tool-runtime-context'
 
 interface StudioBuilderRuntimeOptions {
   registry: StudioToolRegistry
