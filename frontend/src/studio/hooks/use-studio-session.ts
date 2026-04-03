@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import {
+  cancelStudioRun,
   createStudioSession,
   getPendingStudioPermissions,
   getStudioSessionSnapshot,
@@ -31,6 +32,7 @@ import {
   readRecentStudioSessionIds,
   rememberStudioSessionId,
 } from '../session-history/session-storage'
+import type { StudioAssistantMessage } from '../protocol/studio-agent-types'
 
 interface UseStudioSessionOptions {
   studioKind?: StudioKind
@@ -363,6 +365,25 @@ export function useStudioSession(options: UseStudioSessionOptions = {}) {
       await createFreshSession('replace')
       void refreshHistory()
     },
+    cancelCurrentRun: async (reason?: string) => {
+      const activeRun = selectLatestRun(state)
+      if (!activeRun || (activeRun.status !== 'pending' && activeRun.status !== 'running')) {
+        return
+      }
+
+      await cancelStudioRun({
+        runId: activeRun.id,
+        reason,
+      })
+
+      dispatch({
+        type: 'local_assistant_message',
+        message: buildInterruptedAssistantMessage({
+          sessionId: state.entities.session?.id ?? activeRun.sessionId,
+          text: t('studio.interruptMessage'),
+        }),
+      })
+    },
     replyPermission,
     selectWork(workId: string | null) {
       const work = selectSelectedWork(state, workId)
@@ -372,6 +393,32 @@ export function useStudioSession(options: UseStudioSessionOptions = {}) {
         tasks: selectTasksForWork(state, work?.id),
       }
     },
+  }
+}
+
+function buildInterruptedAssistantMessage(input: {
+  sessionId: string
+  text: string
+}): StudioAssistantMessage {
+  const timestamp = new Date().toISOString()
+  const messageId = `local-interrupt-${timestamp}`
+
+  return {
+    id: messageId,
+    sessionId: input.sessionId,
+    role: 'assistant',
+    agent: 'builder',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    parts: [
+      {
+        id: `${messageId}-text`,
+        messageId,
+        sessionId: input.sessionId,
+        type: 'text',
+        text: input.text,
+      },
+    ],
   }
 }
 

@@ -20,6 +20,7 @@ import type {
   StudioSubagentRunResult
 } from '../tools/tool-runtime-context'
 import type { CustomApiConfig } from '../../../types'
+import { throwIfStudioRunCancelled } from './run-cancellation'
 
 interface StudioTurnExecutionOptions {
   projectId: string
@@ -39,6 +40,7 @@ interface StudioTurnExecutionOptions {
   resolveSkill?: (name: string, session: StudioSession) => Promise<StudioResolvedSkill>
   setToolMetadata: (callId: string, metadata: { title?: string; metadata?: Record<string, unknown> }) => void
   customApiConfig?: CustomApiConfig
+  abortSignal?: AbortSignal
 }
 
 export async function* createStudioTurnExecutionStream(
@@ -53,6 +55,7 @@ export async function* createStudioTurnExecutionStream(
   }
 
   for (const toolCall of input.plan.toolCalls ?? []) {
+    throwIfStudioRunCancelled(input.abortSignal)
     const toolInput = asToolInput(toolCall.input)
     yield* createStudioToolCallExecutionEvents({
       projectId: input.projectId,
@@ -74,6 +77,7 @@ export async function* createStudioTurnExecutionStream(
       resolveSkill: input.resolveSkill,
       setToolMetadata: input.setToolMetadata,
       customApiConfig: input.customApiConfig,
+      abortSignal: input.abortSignal,
       commentary: hasAssistantText ? null : undefined
     })
   }

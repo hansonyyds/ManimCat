@@ -21,6 +21,7 @@ export async function requestStudioChatCompletion(input: {
   requestMessageCount?: number
   requestMessageCharsApprox?: number
   requestToolSchemaCharsApprox?: number
+  signal?: AbortSignal
 }): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const startedAt = Date.now()
 
@@ -32,6 +33,7 @@ export async function requestStudioChatCompletion(input: {
       tool_choice: input.toolChoice,
     }, {
       timeout: DEFAULT_PROVIDER_TIMEOUT_MS,
+      signal: input.signal,
     })
 
     logPlotStudioTiming(input.studioKind, 'provider.completed', {

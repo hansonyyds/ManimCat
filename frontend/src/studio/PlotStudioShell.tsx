@@ -22,6 +22,7 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
   const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null)
   const [orderedWorkIds, setOrderedWorkIds] = useState<string[]>([])
   const [confirmExitOpen, setConfirmExitOpen] = useState(false)
+  const [interruptArmedUntil, setInterruptArmedUntil] = useState<number | null>(null)
   const commandPanelRef = useRef<StudioCommandPanelHandle | null>(null)
   const incomingIds = useMemo(() => studio.workSummaries.map((entry) => entry.work.id), [studio.workSummaries])
 
@@ -45,6 +46,29 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
 
   const handleReorderWorks = (nextWorkIds: string[]) => {
     setOrderedWorkIds((current) => (areSameIds(current, nextWorkIds) ? current : nextWorkIds))
+  }
+
+  const interruptHintActive = interruptArmedUntil !== null && interruptArmedUntil > Date.now()
+
+  const handleEscapePress = () => {
+    const activeRun = studio.latestRun
+    const runIsInterruptible = activeRun && (activeRun.status === 'pending' || activeRun.status === 'running')
+    if (!runIsInterruptible) {
+      setInterruptArmedUntil(null)
+      return
+    }
+
+    const now = Date.now()
+    if (interruptArmedUntil && interruptArmedUntil > now) {
+      setInterruptArmedUntil(null)
+      void studio.cancelCurrentRun('Cancelled by double-escape in Plot Studio')
+      return
+    }
+
+    setInterruptArmedUntil(now + 3000)
+    window.setTimeout(() => {
+      setInterruptArmedUntil((current) => (current && current <= Date.now() ? null : current))
+    }, 3100)
   }
 
   return (
@@ -110,55 +134,69 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
               onRun={studio.runCommand}
               onExit={onExit}
               variant="pure-minimal-bottom"
+              onEscapePress={handleEscapePress}
+              inputPlaceholderOverride={interruptHintActive ? t('studio.interruptPlaceholder') : undefined}
             />
           </div>
 
-          <aside className="flex w-full shrink-0 flex-col md:w-[32rem] lg:w-[35rem] xl:w-[38rem]">
+          <aside className="flex min-h-0 w-full shrink-0 flex-col md:w-[32rem] lg:w-[35rem] xl:w-[38rem]">
             <div className="mb-3 h-[1px] bg-accent opacity-[0.08] dark:opacity-[0.18]" />
             <div className="mb-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.4em] opacity-40 dark:opacity-55">
               <span>{t('studio.plot.history')}</span>
               <span>{historyCountLabel}-{maxHistorySlots}</span>
             </div>
             
-            <div className="no-scrollbar grid max-h-60 flex-1 grid-cols-3 gap-4 overflow-y-auto md:max-h-none md:gap-5">
-              {orderedWorkSummaries.map((entry) => {
-                const isSelected = entry.work.id === effectiveSelectedWorkId
-                const attachment = entry.result?.attachments?.find(a => a.mimeType?.startsWith('image/'))
-                return (
-                  <button
-                    key={entry.work.id}
-                    type="button"
-                    onClick={() => setSelectedWorkId(entry.work.id)}
-                    className={`group relative aspect-square overflow-hidden rounded-[1.6rem] border transition-all duration-500 ${
-                      isSelected 
-                        ? 'border-black/10 bg-black/[0.08] dark:border-white/10 dark:bg-bg-secondary/72'
-                        : 'border-transparent bg-black/[0.028] hover:bg-black/[0.05] dark:bg-bg-secondary/38 dark:hover:bg-bg-secondary/55'
-                    }`}
-                  >
-                    {attachment ? (
-                      <img 
-                        src={attachment.path} 
-                        alt={entry.work.title} 
-                        className={`h-full w-full object-cover transition-all duration-700 ${
-                          isSelected
-                            ? 'scale-100 opacity-100'
-                            : 'scale-[1.08] opacity-32 group-hover:scale-100 group-hover:opacity-72 dark:opacity-45 dark:group-hover:opacity-80'
-                        }`} 
-                      />
-                    ) : (
-                      <span className="font-mono text-[8px] uppercase tracking-[0.22em] opacity-12 dark:opacity-25">IMG</span>
-                    )}
-                    <span className="pointer-events-none absolute left-2 top-2 font-mono text-[8px] uppercase tracking-[0.24em] text-white/72 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                      {entry.work.title.slice(0, 8)}
-                    </span>
-                  </button>
-                )
-              })}
-              {orderedWorkSummaries.length === 0 && (
-                <div className="col-span-3 flex aspect-[3/1] items-center justify-center">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.42em] opacity-[0.18]">Null Stack</span>
-                </div>
-              )}
+            <div className="no-scrollbar min-h-0 overflow-y-auto">
+              <div className="grid grid-cols-3 content-start gap-4 md:gap-5">
+                {orderedWorkSummaries.map((entry) => {
+                  const isSelected = entry.work.id === effectiveSelectedWorkId
+                  const attachment = entry.result?.attachments?.find((item) => (
+                    item.mimeType?.startsWith('image/') || /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(item.path)
+                  ))
+                  const failed = entry.work.status === 'failed' || entry.result?.kind === 'failure-report'
+
+                  return (
+                    <button
+                      key={entry.work.id}
+                      type="button"
+                      onClick={() => setSelectedWorkId(entry.work.id)}
+                      className={`group relative aspect-square overflow-hidden rounded-[1.6rem] border transition-all duration-500 ${
+                        isSelected
+                          ? 'border-black/10 bg-black/[0.08] dark:border-white/10 dark:bg-bg-secondary/72'
+                          : 'border-transparent bg-black/[0.028] hover:bg-black/[0.05] dark:bg-bg-secondary/38 dark:hover:bg-bg-secondary/55'
+                      }`}
+                    >
+                      {attachment ? (
+                        <img
+                          src={attachment.path}
+                          alt={entry.work.title}
+                          className={`h-full w-full object-cover transition-all duration-700 ${
+                            isSelected
+                              ? 'scale-100 opacity-100'
+                              : 'scale-[1.08] opacity-32 group-hover:scale-100 group-hover:opacity-72 dark:opacity-45 dark:group-hover:opacity-80'
+                          }`}
+                        />
+                      ) : failed ? (
+                        <div className="flex h-full w-full items-center justify-center bg-rose-500/[0.06] text-rose-700/60 dark:bg-rose-400/[0.08] dark:text-rose-200/65">
+                          <span className="font-mono text-[8px] uppercase tracking-[0.24em]">Fail</span>
+                        </div>
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <span className="font-mono text-[8px] uppercase tracking-[0.22em] opacity-12 dark:opacity-25">IMG</span>
+                        </div>
+                      )}
+                      <span className="pointer-events-none absolute left-2 top-2 font-mono text-[8px] uppercase tracking-[0.24em] text-white/72 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                        {entry.work.title.slice(0, 8)}
+                      </span>
+                    </button>
+                  )
+                })}
+                {orderedWorkSummaries.length === 0 && (
+                  <div className="col-span-3 flex aspect-[3/1] items-center justify-center">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.42em] opacity-[0.18]">Null Stack</span>
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
         </section>

@@ -115,6 +115,10 @@ export class StudioBuilderRuntime {
     return this.runner.startBackgroundRun(input)
   }
 
+  abortBackgroundRun(handle: StudioBackgroundRunHandle, reason?: string): void {
+    handle.abort(reason)
+  }
+
   async runSubagent(input: StudioSubagentRunRequest): Promise<StudioSubagentRunResult> {
     return this.runner.runSubagent(input)
   }

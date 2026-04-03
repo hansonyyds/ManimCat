@@ -44,6 +44,7 @@ export interface StudioToolCallExecutionOptions {
   setToolMetadata: (callId: string, metadata: { title?: string; metadata?: Record<string, unknown> }) => void
   customApiConfig?: CustomApiConfig
   commentary?: string | null
+  abortSignal?: AbortSignal
 }
 
 export async function* createStudioToolCallExecutionEvents(
@@ -150,6 +151,7 @@ async function executeTool(input: {
     projectId: input.options.projectId,
     session: input.options.session,
     run: input.options.run,
+    abortSignal: input.options.abortSignal,
     assistantMessage: input.options.assistantMessage,
     eventBus: input.options.eventBus,
     taskStore: input.options.taskStore,

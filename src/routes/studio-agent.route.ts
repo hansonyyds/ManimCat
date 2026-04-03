@@ -313,6 +313,31 @@ router.post('/studio-agent/runs/:runId/continue', authMiddleware, asyncHandler(a
   }, 202)
 }))
 
+router.post('/studio-agent/runs/:runId/cancel', authMiddleware, asyncHandler(async (req, res) => {
+  const cancelled = await studioRuntime.cancelRun({
+    runId: req.params.runId,
+    reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
+  })
+
+  if (cancelled.status === 'not_found') {
+    return sendStudioError(res, 404, 'NOT_FOUND', 'Run not found', { runId: req.params.runId })
+  }
+
+  if (cancelled.status === 'already_finished') {
+    return sendStudioSuccess(res, {
+      run: cancelled.run,
+      status: cancelled.run?.status ?? 'completed',
+      message: 'Run already finished',
+    })
+  }
+
+  sendStudioSuccess(res, {
+    run: cancelled.run,
+    status: 'cancelled',
+    message: 'Run cancelled',
+  })
+}))
+
 router.get('/studio-agent/permissions/pending', authMiddleware, asyncHandler(async (_req, res) => {
   sendStudioSuccess(res, { requests: studioRuntime.listPendingPermissions() })
 }))

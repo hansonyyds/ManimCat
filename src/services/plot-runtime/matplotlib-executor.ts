@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
+import { StudioRunCancelledError, readAbortReason } from '../../studio-agent/runtime/execution/run-cancellation'
 
 export interface MatplotlibExecutionResult {
   outputDir: string
@@ -15,6 +16,7 @@ export async function executeMatplotlibRender(input: {
   workspaceDirectory: string
   renderId: string
   code: string
+  signal?: AbortSignal
 }): Promise<MatplotlibExecutionResult> {
   const outputDir = join(input.workspaceDirectory, 'renders', input.renderId)
   const matplotlibConfigDir = join(input.workspaceDirectory, '.cache', 'matplotlib')
@@ -26,7 +28,7 @@ export async function executeMatplotlibRender(input: {
   await writeFile(sourcePath, input.code, 'utf8')
   await writeFile(wrapperPath, buildExecutorScript(), 'utf8')
 
-  const { stdout, stderr } = await runPython(wrapperPath, [sourcePath, outputDir, matplotlibConfigDir])
+  const { stdout, stderr } = await runPython(wrapperPath, [sourcePath, outputDir, matplotlibConfigDir], input.signal)
   const parsedImagePaths = parseJsonLine(stdout, 'PLOT_OUTPUTS_JSON=') as string[] | undefined
   const imagePaths = Array.isArray(parsedImagePaths) && parsedImagePaths.length > 0
     ? parsedImagePaths
@@ -59,7 +61,7 @@ async function findPngOutputs(outputDir: string): Promise<string[]> {
     .sort((a, b) => a.localeCompare(b))
 }
 
-async function runPython(scriptPath: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+async function runPython(scriptPath: string, args: string[], signal?: AbortSignal): Promise<{ stdout: string; stderr: string }> {
   const candidates = [
     { command: 'python', args: [scriptPath, ...args], matplotlibConfigDirIndex: 2 },
     { command: 'py', args: ['-3', scriptPath, ...args], matplotlibConfigDirIndex: 4 },
@@ -68,7 +70,7 @@ async function runPython(scriptPath: string, args: string[]): Promise<{ stdout: 
   const failures: string[] = []
   for (const candidate of candidates) {
     try {
-      return await spawnProcess(candidate.command, candidate.args, candidate.matplotlibConfigDirIndex)
+      return await spawnProcess(candidate.command, candidate.args, candidate.matplotlibConfigDirIndex, signal)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       failures.push(`${candidate.command} failed: ${message}`)
@@ -81,9 +83,15 @@ async function runPython(scriptPath: string, args: string[]): Promise<{ stdout: 
 function spawnProcess(
   command: string,
   args: string[],
-  matplotlibConfigDirIndex: number
+  matplotlibConfigDirIndex: number,
+  signal?: AbortSignal,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new StudioRunCancelledError(readAbortReason(signal)))
+      return
+    }
+
     const matplotlibConfigDir = args[matplotlibConfigDirIndex]
     const child = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -94,6 +102,36 @@ function spawnProcess(
     })
     let stdout = ''
     let stderr = ''
+    let finished = false
+
+    const cleanupAbort = () => {
+      signal?.removeEventListener('abort', handleAbort)
+    }
+
+    const settleReject = (error: Error) => {
+      if (finished) {
+        return
+      }
+      finished = true
+      cleanupAbort()
+      reject(error)
+    }
+
+    const settleResolve = (value: { stdout: string; stderr: string }) => {
+      if (finished) {
+        return
+      }
+      finished = true
+      cleanupAbort()
+      resolve(value)
+    }
+
+    const handleAbort = () => {
+      child.kill('SIGTERM')
+      settleReject(new StudioRunCancelledError(readAbortReason(signal)))
+    }
+
+    signal?.addEventListener('abort', handleAbort, { once: true })
 
     child.stdout.on('data', (chunk) => {
       stdout += String(chunk)
@@ -101,14 +139,19 @@ function spawnProcess(
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk)
     })
-    child.on('error', reject)
+    child.on('error', (error) => {
+      settleReject(error instanceof Error ? error : new Error(String(error)))
+    })
     child.on('close', (code) => {
+      if (finished) {
+        return
+      }
       if (code === 0) {
-        resolve({ stdout, stderr })
+        settleResolve({ stdout, stderr })
         return
       }
 
-      reject(new Error(stderr.trim() || `Python process exited with code ${code}`))
+      settleReject(new Error(stderr.trim() || `Python process exited with code ${code}`))
     })
   })
 }

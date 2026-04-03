@@ -37,6 +37,7 @@ export type StudioStateAction =
   | { type: 'run_submitting' }
   | { type: 'run_started'; run: StudioRun; pendingPermissions: StudioPermissionRequest[] }
   | { type: 'run_submit_failed'; error: string }
+  | { type: 'local_assistant_message'; message: StudioAssistantMessage }
   | { type: 'permission_reply_started'; requestId: string }
   | { type: 'permission_reply_finished'; requests: StudioPermissionRequest[] }
 
@@ -181,6 +182,11 @@ export function studioEventReducer(
           pendingAssistantMessageId: null,
         },
         error: action.error,
+      }
+    case 'local_assistant_message':
+      return {
+        ...state,
+        entities: upsertMessages(state.entities, [action.message]),
       }
     case 'permission_reply_started':
       return {

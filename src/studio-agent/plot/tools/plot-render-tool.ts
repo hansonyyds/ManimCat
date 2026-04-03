@@ -4,6 +4,7 @@ import type { StudioFileAttachment, StudioToolDefinition, StudioToolResult, Stud
 import type { StudioRuntimeBackedToolContext } from '../../runtime/tool-runtime-context'
 import { createWorkAndTask, publishWorkUpdated, updateTaskAndWork } from '../../works/work-lifecycle'
 import { executeMatplotlibRender } from '../../../services/plot-runtime/matplotlib-executor'
+import { isStudioRunCancelledError } from '../../runtime/execution/run-cancellation'
 
 interface PlotRenderToolInput {
   concept: string
@@ -76,7 +77,8 @@ async function executePlotRenderTool(
     const execution = await executeMatplotlibRender({
       workspaceDirectory: context.session.directory,
       renderId,
-      code: input.code
+      code: input.code,
+      signal: context.abortSignal,
     })
 
     const workResult = await persistWorkResult({
@@ -151,6 +153,28 @@ async function executePlotRenderTool(
       }
     }
   } catch (error) {
+    if (isStudioRunCancelledError(error)) {
+      await updateTaskAndWork({
+        context,
+        task,
+        work,
+        taskPatch: {
+          status: 'cancelled',
+          metadata: {
+            ...(task?.metadata ?? {}),
+            ...lifecycleMetadata,
+            cancelReason: error.reason,
+          }
+        },
+        workMetadata: {
+          ...lifecycleMetadata,
+          cancelReason: error.reason,
+        }
+      })
+
+      throw error
+    }
+
     await persistFailureResult({
       context,
       workId: work?.id,

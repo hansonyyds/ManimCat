@@ -15,6 +15,7 @@ import {
   buildDraftAssistantMessage,
   buildDraftRun,
   buildSubagentPrompt,
+  cancelRunState,
   extractLatestAssistantText,
   failRunState,
   finalizeRunState
@@ -43,6 +44,7 @@ import type {
 } from '../../domain/types'
 import { StudioToolRegistry } from '../../tools/registry'
 import { logPlotStudioTiming, readElapsedMs, readRunElapsedMs } from '../../observability/plot-studio-timing'
+import { isStudioRunCancelledError, throwIfStudioRunCancelled } from './run-cancellation'
 
 interface StudioSessionRunnerOptions {
   registry: StudioToolRegistry
@@ -89,6 +91,7 @@ interface StudioPreparedRunExecution {
 export interface StudioBackgroundRunHandle {
   run: StudioRun
   assistantMessage: StudioAssistantMessage
+  abort: (reason?: string) => void
   completion: Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }>
 }
 
@@ -144,10 +147,12 @@ export class StudioSessionRunner {
 
   async startBackgroundRun(input: StudioRunRequestInput): Promise<StudioBackgroundRunHandle> {
     const prepared = await this.prepareRun(input)
+    const abortController = new AbortController()
     return {
       run: prepared.run,
       assistantMessage: prepared.assistantMessage,
-      completion: this.executePreparedRun(prepared)
+      abort: (reason?: string) => abortController.abort(reason ?? 'Run cancelled'),
+      completion: this.executePreparedRun(prepared, abortController.signal)
     }
   }
 
@@ -160,12 +165,14 @@ export class StudioSessionRunner {
     toolChoice?: StudioToolChoice
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
     const prepared = await this.prepareRun(input)
+    const abortController = new AbortController()
     return this.executePreparedStream(prepared, this.createResolvedPlanExecution({
       prepared,
       plan: input.plan,
       customApiConfig: input.customApiConfig,
-      toolChoice: input.toolChoice
-    }))
+      toolChoice: input.toolChoice,
+      abortSignal: abortController.signal,
+    }), abortController.signal)
   }
 
   async runSubagent(input: StudioSubagentRunRequest): Promise<StudioSubagentRunResult> {
@@ -231,13 +238,15 @@ export class StudioSessionRunner {
     }
   }
 
-  private async executePreparedRun(prepared: StudioPreparedRunContext) {
+  private async executePreparedRun(prepared: StudioPreparedRunContext, abortSignal: AbortSignal) {
+    throwIfStudioRunCancelled(abortSignal)
     if (hasUsableCustomApiConfig(prepared.input.customApiConfig)) {
       return this.executePreparedStream(prepared, this.createAgentLoopExecution({
         prepared,
         customApiConfig: prepared.input.customApiConfig,
-        toolChoice: resolveStudioToolChoice({ session: prepared.input.session, override: prepared.input.toolChoice })
-      }))
+        toolChoice: resolveStudioToolChoice({ session: prepared.input.session, override: prepared.input.toolChoice }),
+        abortSignal,
+      }), abortSignal)
     }
 
     const plan = await this.resolveTurnPlan({
@@ -253,8 +262,9 @@ export class StudioSessionRunner {
       prepared,
       plan,
       customApiConfig: prepared.input.customApiConfig,
-      toolChoice: prepared.input.toolChoice
-    }))
+      toolChoice: prepared.input.toolChoice,
+      abortSignal,
+    }), abortSignal)
   }
 
   private async buildWorkContext(input: {
@@ -283,6 +293,7 @@ export class StudioSessionRunner {
     plan: StudioRuntimeTurnPlan
     customApiConfig?: CustomApiConfig
     toolChoice?: StudioToolChoice
+    abortSignal: AbortSignal
   }): StudioPreparedRunExecution {
     return {
       events: createStudioTurnExecutionStream({
@@ -313,7 +324,8 @@ export class StudioSessionRunner {
             metadata: metadata.metadata
           })
         },
-        customApiConfig: input.customApiConfig
+        customApiConfig: input.customApiConfig,
+        abortSignal: input.abortSignal,
       })
     }
   }
@@ -322,6 +334,7 @@ export class StudioSessionRunner {
     prepared: StudioPreparedRunContext
     customApiConfig: CustomApiConfig
     toolChoice?: StudioToolChoice
+    abortSignal: AbortSignal
   }): StudioPreparedRunExecution {
     return {
       startLog: {
@@ -367,6 +380,7 @@ export class StudioSessionRunner {
         },
         customApiConfig: input.customApiConfig,
         toolChoice: input.toolChoice,
+        abortSignal: input.abortSignal,
         onCheckpoint: async (patch) => {
           const nextRun = this.runStore
             ? await this.runStore.update(input.prepared.run.id, patch) ?? { ...input.prepared.run, ...patch }
@@ -383,9 +397,11 @@ export class StudioSessionRunner {
 
   private async executePreparedStream(
     prepared: StudioPreparedRunContext,
-    execution: StudioPreparedRunExecution
+    execution: StudioPreparedRunExecution,
+    abortSignal: AbortSignal,
   ): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
     try {
+      throwIfStudioRunCancelled(abortSignal)
       if (execution.startLog) {
         logPlotStudioTiming(prepared.input.session.studioKind, execution.startLog.event, execution.startLog.payload)
       }
@@ -406,12 +422,42 @@ export class StudioSessionRunner {
         eventBus: prepared.eventBus
       })
     } catch (error) {
+      if (isStudioRunCancelledError(error)) {
+        return this.handleCancelledRun({
+          input: { session: prepared.input.session },
+          run: prepared.run,
+          reason: error.reason,
+        })
+      }
       return this.handleFailedRun({
         input: { session: prepared.input.session },
         run: prepared.run,
         error
       })
     }
+  }
+
+  private async handleCancelledRun(input: {
+    input: { session: StudioSession }
+    run: StudioRun
+    reason: string
+  }): Promise<never> {
+    const cancelledRun = cancelRunState(input.run, input.reason)
+    await this.runStore?.update(input.run.id, cancelledRun)
+    ;(this.sharedEventBus ?? new InMemoryStudioEventBus()).publish({
+      type: 'run_updated',
+      run: cancelledRun
+    })
+
+    logPlotStudioTiming(input.input.session.studioKind, 'run.failed', {
+      sessionId: input.input.session.id,
+      runId: input.run.id,
+      error: input.reason,
+      cancelled: true,
+      runElapsedMs: readRunElapsedMs(cancelledRun),
+    }, 'warn')
+
+    throw new Error(input.reason)
   }
 
   private async finalizeSuccessfulRun(input: {

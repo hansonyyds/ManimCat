@@ -36,6 +36,7 @@ import { syncStudioRenderTask } from './session/render-task-sync'
 import { createStudioSessionMetadata } from './session/session-agent-config'
 import { flushTerminalSessionEventsToAssistant } from './session/session-event-inbox'
 import type { StudioWorkspaceProvider } from '../workspace/studio-workspace-provider'
+import { cancelRunState } from './execution/session-runner-helpers'
 
 interface SubscribableStudioEventBus extends StudioEventBus {
   subscribe: (listener: StudioEventListener) => () => void
@@ -109,6 +110,10 @@ export interface StudioRuntimeService {
   subscribeExternalEvents: (listener: (event: StudioExternalEvent) => void) => () => void
   listPendingPermissions: () => StudioPermissionRequest[]
   replyPermission: (replyInput: StudioPermissionReply) => boolean
+  cancelRun: (input: { runId: string; reason?: string }) => Promise<{
+    status: 'cancelled' | 'already_finished' | 'not_found'
+    run?: import('../domain/types').StudioRun
+  }>
 }
 
 export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInput): StudioRuntimeService {
@@ -116,6 +121,10 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
   const eventBus: SubscribableStudioEventBus = input.eventBus ?? new InMemoryStudioEventBus()
   const externalEventLog: StudioExternalEvent[] = []
   const activeSessionRuns = new Map<string, string>()
+  const activeRunHandles = new Map<string, {
+    sessionId: string
+    handle: Awaited<ReturnType<StudioBuilderRuntime['startBackgroundRun']>>
+  }>()
 
   registerSharedStudioTools(registry)
   registerManimStudioTools(registry)
@@ -161,6 +170,10 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
 
     const handle = await runtime.startBackgroundRun(runInput)
     activeSessionRuns.set(runInput.session.id, handle.run.id)
+    activeRunHandles.set(handle.run.id, {
+      sessionId: runInput.session.id,
+      handle,
+    })
 
     void handle.completion
       .catch(() => {
@@ -170,6 +183,7 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
         if (activeSessionRuns.get(runInput.session.id) === handle.run.id) {
           activeSessionRuns.delete(runInput.session.id)
         }
+        activeRunHandles.delete(handle.run.id)
       })
 
     return {
@@ -329,6 +343,88 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
     },
     replyPermission(replyInput: StudioPermissionReply): boolean {
       return input.permissionService.reply(replyInput)
+    },
+    async cancelRun(cancelInput) {
+      const run = await input.persistence.runStore.getById(cancelInput.runId)
+      if (!run) {
+        return { status: 'not_found' as const }
+      }
+
+      if (run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled') {
+        return { status: 'already_finished' as const, run }
+      }
+
+      const reason = cancelInput.reason?.trim() || 'Run cancelled by user'
+      activeRunHandles.get(cancelInput.runId)?.handle.abort(reason)
+
+      const cancelledRun = await input.persistence.runStore.update(cancelInput.runId, cancelRunState(run, reason))
+        ?? cancelRunState(run, reason)
+
+      eventBus.publish({
+        type: 'run_updated',
+        run: cancelledRun
+      })
+
+      const [tasks, works] = await Promise.all([
+        input.persistence.taskStore.listBySessionId(run.sessionId),
+        input.persistence.workStore.listBySessionId(run.sessionId),
+      ])
+
+      await Promise.all(tasks
+        .filter((task) => task.runId === cancelInput.runId)
+        .filter((task) => task.status === 'queued' || task.status === 'running' || task.status === 'pending_confirmation' || task.status === 'proposed')
+        .map(async (task) => {
+          const updated = await input.persistence.taskStore.update(task.id, {
+            status: 'cancelled',
+            metadata: {
+              ...(task.metadata ?? {}),
+              cancelReason: reason,
+            }
+          }) ?? {
+            ...task,
+            status: 'cancelled' as const,
+            metadata: {
+              ...(task.metadata ?? {}),
+              cancelReason: reason,
+            }
+          }
+
+          eventBus.publish({
+            type: 'task_updated',
+            sessionId: updated.sessionId,
+            runId: updated.runId,
+            task: updated,
+          })
+        }))
+
+      await Promise.all(works
+        .filter((work) => work.runId === cancelInput.runId)
+        .filter((work) => work.status === 'queued' || work.status === 'running' || work.status === 'proposed')
+        .map(async (work) => {
+          const updated = await input.persistence.workStore.update(work.id, {
+            status: 'cancelled',
+            metadata: {
+              ...(work.metadata ?? {}),
+              cancelReason: reason,
+            }
+          }) ?? {
+            ...work,
+            status: 'cancelled' as const,
+            metadata: {
+              ...(work.metadata ?? {}),
+              cancelReason: reason,
+            }
+          }
+
+          eventBus.publish({
+            type: 'work_updated',
+            sessionId: updated.sessionId,
+            runId: updated.runId,
+            work: updated,
+          })
+        }))
+
+      return { status: 'cancelled' as const, run: cancelledRun }
     },
   }
 }

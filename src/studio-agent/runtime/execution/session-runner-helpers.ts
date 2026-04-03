@@ -68,6 +68,15 @@ export function failRunState(run: StudioRun, error: string): StudioRun {
   }
 }
 
+export function cancelRunState(run: StudioRun, reason: string): StudioRun {
+  return {
+    ...run,
+    status: 'cancelled',
+    completedAt: new Date().toISOString(),
+    error: reason,
+  }
+}
+
 export function extractLatestAssistantText(parts: StudioMessagePart[]): string {
   const textPart = [...parts].reverse().find((part) => part.type === 'text')
   return textPart?.type === 'text' ? textPart.text : ''

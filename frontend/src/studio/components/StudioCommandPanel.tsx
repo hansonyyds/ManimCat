@@ -28,6 +28,8 @@ interface StudioCommandPanelProps {
   onRun: (inputText: string) => Promise<void> | void
   onExit: () => void
   variant?: 'default' | 't-layout-bottom' | 'pure-minimal-bottom'
+  inputPlaceholderOverride?: string
+  onEscapePress?: () => void
 }
 
 export interface StudioCommandPanelHandle {
@@ -44,6 +46,8 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
   onRun,
   onExit,
   variant = 'default',
+  inputPlaceholderOverride,
+  onEscapePress,
 }, ref) {
   const { t } = useI18n()
   const isTLayout = variant === 't-layout-bottom'
@@ -195,7 +199,17 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
 
   useEffect(() => {
     const handleWindowKeyDown = (event: KeyboardEvent) => {
-      if (disabled || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+        return
+      }
+
+      if (event.key === 'Escape' && onEscapePress) {
+        event.preventDefault()
+        onEscapePress()
+        return
+      }
+
+      if (disabled) {
         return
       }
 
@@ -227,7 +241,7 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
 
     window.addEventListener('keydown', handleWindowKeyDown)
     return () => window.removeEventListener('keydown', handleWindowKeyDown)
-  }, [disabled])
+  }, [disabled, onEscapePress])
 
   useEffect(() => {
     if (!latestAssistantText) {
@@ -287,6 +301,8 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
 
     return () => window.clearTimeout(timer)
   }, [animatedAssistantText, latestAssistantText])
+
+  const effectivePlaceholder = inputPlaceholderOverride ?? (disabled ? t('studio.initializing') : t('studio.commandPlaceholder'))
 
   return (
     <section
@@ -374,12 +390,18 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
               value={input}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={(e) => {
+                if (e.key === 'Escape' && onEscapePress) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onEscapePress()
+                  return
+                }
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   void handleSubmit()
                 }
               }}
-              placeholder={isMinimal ? '' : disabled ? t('studio.initializing') : t('studio.commandPlaceholder')}
+              placeholder={isMinimal ? '' : effectivePlaceholder}
               disabled={false}
               aria-disabled={disabled}
               className={`w-full bg-transparent outline-none ${isTLayout ? 'text-[14px] text-[#333] placeholder:text-[#ccc]' : isMinimal ? 'text-[13px] leading-loose text-accent' : 'text-[14px] font-medium leading-relaxed text-text-primary placeholder:text-text-secondary/25'}`}
@@ -388,7 +410,7 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center">
                 {input.length === 0 && (
                   <span className="text-[13px] leading-loose text-accent/20">
-                    {disabled ? t('studio.initializing') : t('studio.commandPlaceholder')}（{t('studio.enterToSend')}）
+                    {effectivePlaceholder}（{t('studio.enterToSend')}）
                   </span>
                 )}
               </div>

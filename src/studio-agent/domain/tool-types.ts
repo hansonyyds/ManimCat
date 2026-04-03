@@ -56,6 +56,7 @@ export interface StudioToolContext {
   projectId: string
   session: StudioSession
   run: StudioRun
+  abortSignal?: AbortSignal
   assistantMessage: StudioAssistantMessage
   eventBus: StudioEventBus
   taskStore?: StudioTaskStore

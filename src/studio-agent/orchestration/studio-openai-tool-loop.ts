@@ -39,6 +39,7 @@ import { determineStudioAgentLoopAction } from './studio-agent-loop-policy'
 import { buildStudioChatTools } from './studio-tool-schema'
 import { buildStudioPreToolCommentary } from '../runtime/pre-tool-commentary'
 import { logPlotStudioTiming, readElapsedMs, readRunElapsedMs } from '../observability/plot-studio-timing'
+import { throwIfStudioRunCancelled } from '../runtime/execution/run-cancellation'
 
 const DEFAULT_MAX_STEPS = 8
 
@@ -71,6 +72,7 @@ interface StudioOpenAIToolLoopInput {
   maxSteps?: number
   toolChoice?: StudioToolChoice
   onCheckpoint?: (patch: Partial<StudioRun>) => Promise<void>
+  abortSignal?: AbortSignal
 }
 
 interface StudioLoopRuntime {
@@ -157,6 +159,7 @@ export async function* createStudioOpenAIToolLoop(
   const checkpoints = new StudioLoopCheckpointManager(input)
 
   for (let step = 0; step < runtime.maxSteps; step += 1) {
+    throwIfStudioRunCancelled(input.abortSignal)
     const stepStartedAt = Date.now()
     if (step > 0) {
       runtime.currentAssistantMessage = await input.createAssistantMessage()
@@ -167,6 +170,7 @@ export async function* createStudioOpenAIToolLoop(
     }
 
     const autonomy = await checkpoints.beginStep()
+    throwIfStudioRunCancelled(input.abortSignal)
     const request = buildStepRequest(runtime)
     const result = await requestLoopStep(input, runtime, request, step, stepStartedAt)
 
@@ -302,6 +306,7 @@ async function requestLoopStep(
     requestMessageCount: request.messages.length,
     requestMessageCharsApprox: request.requestMessageCharsApprox,
     requestToolSchemaCharsApprox: request.requestToolSchemaCharsApprox,
+    signal: input.abortSignal,
   })
 
   const choice = completion.choices[0]
@@ -359,6 +364,7 @@ async function* executeToolCallsForStep(
   const hasAssistantText = Boolean(result.assistantText)
 
   for (const toolCall of result.toolCalls) {
+    throwIfStudioRunCancelled(input.abortSignal)
     const execution = executeSingleToolCall(input, runtime, toolCall, autonomy, hasAssistantText)
     let toolResult: IteratorResult<StudioProcessorStreamEvent, { transcript: string; failureMessage: string | null }>
     while (true) {
@@ -393,6 +399,7 @@ async function* executeSingleToolCall(
   const toolName = toolCall.function.name
   const toolCallId = toolCall.id
   const parsedInput = parseToolArguments(toolName, toolCall.function.arguments)
+  throwIfStudioRunCancelled(input.abortSignal)
 
   if (!parsedInput.ok) {
     const fatal = autonomy.consecutiveFailures + 1 >= autonomy.maxConsecutiveFailures
@@ -445,6 +452,7 @@ async function* executeSingleToolCall(
     resolveSkill: input.resolveSkill,
     setToolMetadata: (callId, metadata) => input.setToolMetadata(runtime.currentAssistantMessage, callId, metadata),
     customApiConfig: input.customApiConfig,
+    abortSignal: input.abortSignal,
     commentary: hasAssistantText
       ? null
       : buildStudioPreToolCommentary({
