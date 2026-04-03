@@ -1,4 +1,5 @@
-import { CLOSED_IMAGE_CONTEXT_MENU, ImageContextMenu } from '../../../components/image-preview/context-menu'
+import { ImageContextMenu } from '../../../components/image-preview/context-menu'
+import { CLOSED_IMAGE_CONTEXT_MENU } from '../../../components/image-preview/context-menu-state'
 import { useI18n } from '../../../i18n'
 
 interface PlotPreviewContextMenuProps {
@@ -31,7 +32,7 @@ export function PlotPreviewContextMenu({
   return (
     <ImageContextMenu
       state={isOpen ? { open: true, x, y } : CLOSED_IMAGE_CONTEXT_MENU}
-      variant="studio-light"
+      appearance="studio"
       items={hasPreview ? [
         {
           key: 'copy-png',

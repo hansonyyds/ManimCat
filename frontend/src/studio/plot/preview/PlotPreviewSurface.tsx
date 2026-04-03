@@ -40,7 +40,7 @@ export function PlotPreviewSurface({
               type="button"
               onClick={onPrev}
               className={`absolute left-2 top-1/2 z-10 -translate-y-1/2 font-mono text-sm transition sm:left-4 ${
-                isMinimal ? 'text-accent/35 hover:text-accent/70' : 'text-text-secondary/70 hover:text-text-primary'
+                isMinimal ? 'text-text-secondary/45 hover:text-text-primary dark:text-white/40 dark:hover:text-white' : 'text-text-secondary/70 hover:text-text-primary dark:text-white/55 dark:hover:text-white'
               }`}
             >
               ←
@@ -49,7 +49,7 @@ export function PlotPreviewSurface({
               type="button"
               onClick={onNext}
               className={`absolute right-2 top-1/2 z-10 -translate-y-1/2 font-mono text-sm transition sm:right-4 ${
-                isMinimal ? 'text-accent/35 hover:text-accent/70' : 'text-text-secondary/70 hover:text-text-primary'
+                isMinimal ? 'text-text-secondary/45 hover:text-text-primary dark:text-white/40 dark:hover:text-white' : 'text-text-secondary/70 hover:text-text-primary dark:text-white/55 dark:hover:text-white'
               }`}
             >
               →
@@ -57,8 +57,8 @@ export function PlotPreviewSurface({
             <div
               className={`pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 font-mono text-[10px] tracking-[0.24em] ${
                 isMinimal
-                  ? 'bottom-5 text-accent/35'
-                  : 'bottom-4 rounded-full bg-black/30 px-3 py-1 text-white/85 backdrop-blur-sm'
+                  ? 'bottom-5 rounded-full border border-border/10 bg-bg-secondary/70 px-3 py-1 text-text-secondary/60 backdrop-blur-md dark:border-white/10 dark:bg-bg-secondary/74 dark:text-text-secondary/80'
+                  : 'bottom-4 rounded-full border border-black/10 bg-white/70 px-3 py-1 text-text-primary/80 backdrop-blur-md dark:border-white/10 dark:bg-bg-secondary/82 dark:text-text-primary/90'
               }`}
             >
               {String(currentIndex + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
@@ -81,14 +81,22 @@ export function PlotPreviewSurface({
             }
           }}
           onContextMenu={onContextMenu}
-          className={`flex h-full w-full cursor-zoom-in items-center justify-center animate-fade-in-soft ${isMinimal ? 'px-4 py-3 sm:px-8 sm:py-6' : ''}`}
+          className={`flex h-full w-full cursor-zoom-in items-center justify-center animate-fade-in-soft ${
+            isMinimal ? 'px-4 py-3 sm:px-8 sm:py-6' : ''
+          }`}
           title={t('image.openTitle')}
         >
-          <img
-            src={attachment?.path}
-            alt={attachment?.name ?? t('studio.plot.previewAlt')}
-            className="max-h-full max-w-full object-contain"
-          />
+          <div className={`relative flex h-full w-full items-center justify-center overflow-hidden transition-all duration-500 ${
+            isMinimal
+              ? 'bg-transparent'
+              : 'bg-transparent'
+          }`}>
+            <img
+              src={attachment?.path}
+              alt={attachment?.name ?? t('studio.plot.previewAlt')}
+              className="relative z-[1] max-h-full max-w-full object-contain"
+            />
+          </div>
         </div>
       </div>
     )
@@ -97,7 +105,7 @@ export function PlotPreviewSurface({
   if (result?.kind === 'failure-report') {
     return (
       <div className={`flex flex-col items-center justify-center ${isMinimal ? 'opacity-24' : 'opacity-30'}`}>
-        <div className={`font-medium uppercase tracking-widest ${isMinimal ? 'font-mono text-[11px] text-rose-600/60' : 'text-sm text-rose-600/70'}`}>
+        <div className={`font-medium uppercase tracking-widest ${isMinimal ? 'font-mono text-[11px] text-rose-600/60 dark:text-rose-300/55' : 'text-sm text-rose-600/70 dark:text-rose-300/65'}`}>
           {t('studio.renderFailed')}
         </div>
       </div>
@@ -105,8 +113,8 @@ export function PlotPreviewSurface({
   }
 
   return (
-    <div className={`flex h-full w-full items-center justify-center ${isMinimal ? 'opacity-30 transition-opacity duration-500 hover:opacity-60' : 'opacity-22'}`}>
-      <span className={`font-mono uppercase ${isMinimal ? 'text-[12px] tracking-[0.34em]' : 'text-[11px] tracking-[0.28em]'}`}>
+    <div className={`flex h-full w-full items-center justify-center ${isMinimal ? 'opacity-30 transition-opacity duration-500 hover:opacity-60' : 'opacity-22 dark:opacity-30'}`}>
+      <span className={`font-mono uppercase text-text-secondary/55 dark:text-white/40 ${isMinimal ? 'text-[12px] tracking-[0.34em]' : 'text-[11px] tracking-[0.28em]'}`}>
         [ Canvas Area ]
       </span>
     </div>

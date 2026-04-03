@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { StudioPermissionModeModal } from './controls/StudioPermissionModeModal'
 import { StudioCommandPanel, type StudioCommandPanelHandle } from './components/StudioCommandPanel'
 import { useStudioSession } from './hooks/use-studio-session'
@@ -22,34 +22,16 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
   const [orderedWorkIds, setOrderedWorkIds] = useState<string[]>([])
   const [confirmExitOpen, setConfirmExitOpen] = useState(false)
   const commandPanelRef = useRef<StudioCommandPanelHandle | null>(null)
-  const incomingIds = studio.workSummaries.map((entry) => entry.work.id)
-  const incomingIdsKey = incomingIds.join('|')
-
-  useEffect(() => {
-    setOrderedWorkIds((current) => {
-      const preserved = current.filter((id) => incomingIds.includes(id))
-      const appended = incomingIds.filter((id) => !preserved.includes(id))
-      const next = [...appended, ...preserved]
-      return areSameIds(current, next) ? current : next
-    })
-  }, [incomingIdsKey])
+  const incomingIds = useMemo(() => studio.workSummaries.map((entry) => entry.work.id), [studio.workSummaries])
 
   const orderedWorkSummaries = useMemo(() => {
     const byId = new Map(studio.workSummaries.map((entry) => [entry.work.id, entry]))
-    return orderedWorkIds
+    const preserved = orderedWorkIds.filter((id) => byId.has(id))
+    const appended = incomingIds.filter((id) => !preserved.includes(id))
+    return [...appended, ...preserved]
       .map((id) => byId.get(id))
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-  }, [orderedWorkIds, studio.workSummaries])
-
-  const latestWorkId = orderedWorkSummaries[0]?.work.id ?? null
-
-  useEffect(() => {
-    if (!latestWorkId) {
-      return
-    }
-
-    setSelectedWorkId((current) => (current === latestWorkId ? current : latestWorkId))
-  }, [latestWorkId])
+  }, [incomingIds, orderedWorkIds, studio.workSummaries])
 
   const effectiveSelectedWorkId =
     selectedWorkId && orderedWorkSummaries.some((entry) => entry.work.id === selectedWorkId)
@@ -57,6 +39,8 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
       : orderedWorkSummaries[0]?.work.id ?? null
   const selected = studio.selectWork(effectiveSelectedWorkId)
   const historyCountLabel = String(orderedWorkSummaries.length).padStart(2, '0')
+  const historyCount = orderedWorkSummaries.length
+  const maxHistorySlots = historyCount <= 12 ? 12 : Math.ceil(historyCount / 12) * 12 + (historyCount % 12 === 0 ? 0 : 12)
 
   const handleReorderWorks = (nextWorkIds: string[]) => {
     setOrderedWorkIds((current) => (areSameIds(current, nextWorkIds) ? current : nextWorkIds))
@@ -65,21 +49,21 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
   return (
     <>
       <div
-        className={`studio-shell-root relative isolate flex min-h-screen flex-col overflow-y-auto bg-[#fafaf8] px-6 pb-2 pt-7 text-accent antialiased sm:px-8 sm:pb-3 sm:pt-8 md:h-screen md:overflow-hidden md:px-10 md:pb-4 md:pt-10 lg:px-12 lg:pb-5 lg:pt-12 ${
+        className={`studio-shell-root relative isolate flex min-h-screen flex-col overflow-y-auto bg-[#fafaf8] px-6 pb-2 pt-7 text-accent antialiased dark:bg-bg-primary dark:text-text-primary sm:px-8 sm:pb-3 sm:pt-8 md:h-screen md:overflow-hidden md:px-10 md:pb-4 md:pt-10 lg:px-12 lg:pb-5 lg:pt-12 ${
           isExiting ? 'animate-studio-exit' : 'animate-studio-entrance'
         }`}
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(66,66,66,0.045),_transparent_52%),radial-gradient(circle_at_bottom_right,_rgba(66,66,66,0.04),_transparent_36%)]"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(66,66,66,0.045),_transparent_52%),radial-gradient(circle_at_bottom_right,_rgba(66,66,66,0.04),_transparent_36%)] dark:bg-[radial-gradient(circle_at_top,_rgba(138,138,138,0.08),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(138,138,138,0.05),_transparent_32%)]"
         />
 
         <header className="mb-10 flex shrink-0 items-center justify-between gap-6 md:mb-12">
           <div className="flex min-w-0 items-center gap-4 sm:gap-6">
-            <ManimCatLogo className="h-8 w-8 shrink-0 opacity-80 mix-blend-multiply sm:h-9 sm:w-9" />
+            <ManimCatLogo className="h-8 w-8 shrink-0 opacity-80 mix-blend-multiply dark:mix-blend-normal sm:h-9 sm:w-9" />
             <div className="flex min-w-0 items-baseline gap-4 sm:gap-6">
               <span className="truncate text-lg font-light tracking-[0.22em] sm:text-xl sm:tracking-[0.28em]">MANIMCAT</span>
-              <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.36em] opacity-35 sm:text-[11px]">Workspace</span>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.36em] opacity-35 sm:text-[11px]">{studio.session?.directory ?? 'workspace'}</span>
             </div>
           </div>
           <button 
@@ -129,10 +113,10 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
           </div>
 
           <aside className="flex w-full shrink-0 flex-col md:w-[32rem] lg:w-[35rem] xl:w-[38rem]">
-            <div className="mb-3 h-[1px] bg-accent opacity-[0.08]" />
-            <div className="mb-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.4em] opacity-40">
+            <div className="mb-3 h-[1px] bg-accent opacity-[0.08] dark:opacity-[0.18]" />
+            <div className="mb-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.4em] opacity-40 dark:opacity-55">
               <span>{t('studio.plot.history')}</span>
-              <span>{historyCountLabel}-12</span>
+              <span>{historyCountLabel}-{maxHistorySlots}</span>
             </div>
             
             <div className="no-scrollbar grid max-h-60 flex-1 grid-cols-3 gap-4 overflow-y-auto md:max-h-none md:gap-5">
@@ -144,10 +128,10 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
                     key={entry.work.id}
                     type="button"
                     onClick={() => setSelectedWorkId(entry.work.id)}
-                    className={`group relative aspect-square overflow-hidden bg-black/[0.028] transition-all duration-500 ${
+                    className={`group relative aspect-square overflow-hidden rounded-[1.6rem] border transition-all duration-500 ${
                       isSelected 
-                        ? 'bg-black/[0.08]'
-                        : 'hover:bg-black/[0.05]'
+                        ? 'border-black/10 bg-black/[0.08] dark:border-white/10 dark:bg-bg-secondary/72'
+                        : 'border-transparent bg-black/[0.028] hover:bg-black/[0.05] dark:bg-bg-secondary/38 dark:hover:bg-bg-secondary/55'
                     }`}
                   >
                     {attachment ? (
@@ -157,11 +141,11 @@ export function PlotStudioShell({ onExit, isExiting }: PlotStudioShellProps) {
                         className={`h-full w-full object-cover transition-all duration-700 ${
                           isSelected
                             ? 'scale-100 opacity-100'
-                            : 'scale-[1.08] opacity-32 group-hover:scale-100 group-hover:opacity-72'
+                            : 'scale-[1.08] opacity-32 group-hover:scale-100 group-hover:opacity-72 dark:opacity-45 dark:group-hover:opacity-80'
                         }`} 
                       />
                     ) : (
-                      <span className="font-mono text-[8px] uppercase tracking-[0.22em] opacity-12">IMG</span>
+                      <span className="font-mono text-[8px] uppercase tracking-[0.22em] opacity-12 dark:opacity-25">IMG</span>
                     )}
                     <span className="pointer-events-none absolute left-2 top-2 font-mono text-[8px] uppercase tracking-[0.24em] text-white/72 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                       {entry.work.title.slice(0, 8)}

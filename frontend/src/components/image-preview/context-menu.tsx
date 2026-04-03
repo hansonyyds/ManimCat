@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import type { ImageContextMenuState } from './context-menu-state'
 
 export interface ImageContextMenuItem {
   key: string
@@ -9,24 +10,15 @@ export interface ImageContextMenuItem {
   disabled?: boolean
 }
 
-export interface ImageContextMenuState {
-  open: boolean
-  x: number
-  y: number
-}
-
-export const CLOSED_IMAGE_CONTEXT_MENU: ImageContextMenuState = { open: false, x: 0, y: 0 }
-
 export function ImageContextMenu(input: {
   state: ImageContextMenuState
-  variant?: 'dark' | 'studio-light'
+  appearance?: 'default' | 'studio'
   title?: string
   items: ImageContextMenuItem[]
   onClose: () => void
 }) {
-  const { state, variant = 'studio-light', title, items, onClose } = input
+  const { state, appearance = 'default', title, items, onClose } = input
   const ref = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState({ left: state.x, top: state.y })
 
   useLayoutEffect(() => {
     if (!state.open) {
@@ -38,7 +30,10 @@ export function ImageContextMenu(input: {
     const margin = 12
     const left = Math.max(margin, Math.min(state.x, window.innerWidth - width - margin))
     const top = Math.max(margin, Math.min(state.y, window.innerHeight - height - margin))
-    setPosition({ left, top })
+    if (ref.current) {
+      ref.current.style.left = `${left}px`
+      ref.current.style.top = `${top}px`
+    }
   }, [items.length, state.open, state.x, state.y, title])
 
   useEffect(() => {
@@ -72,23 +67,21 @@ export function ImageContextMenu(input: {
     return null
   }
 
-  const shellClassName = variant === 'studio-light'
-    ? 'fixed z-[220] w-56 overflow-hidden rounded-[1.6rem] border border-border/10 bg-bg-secondary/92 text-text-primary shadow-2xl backdrop-blur-xl'
-    : 'fixed z-[220] w-56 overflow-hidden rounded-[1.6rem] border border-white/10 bg-slate-950/92 text-white/92 shadow-2xl backdrop-blur-xl'
+  const shellClassName = appearance === 'studio'
+    ? 'fixed z-[220] w-56 overflow-hidden rounded-[1.6rem] border border-border/10 bg-bg-secondary/92 text-text-primary shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-bg-secondary/92 dark:text-text-primary'
+    : 'fixed z-[220] w-56 overflow-hidden rounded-[1.25rem] border border-border/10 bg-bg-secondary/92 text-text-primary shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-bg-secondary/92 dark:text-text-primary'
 
-  const titleClassName = variant === 'studio-light'
-    ? 'border-border/10 text-text-secondary/55'
-    : 'border-white/10 text-white/45'
+  const titleClassName = 'border-border/10 text-text-secondary/55 dark:border-white/10 dark:text-text-secondary/70'
 
-  const buttonClassName = variant === 'studio-light'
-    ? 'w-full rounded-[1.1rem] px-4 py-3 text-left text-sm text-text-primary transition hover:bg-bg-primary/60 disabled:opacity-60'
-    : 'w-full rounded-[1.1rem] px-4 py-3 text-left text-sm text-white/90 transition hover:bg-white/10 disabled:opacity-60'
+  const buttonClassName = appearance === 'studio'
+    ? 'w-full rounded-[1.1rem] px-4 py-3 text-left text-sm text-text-primary transition hover:bg-bg-primary/60 disabled:opacity-60 dark:text-text-primary dark:hover:bg-bg-primary/70'
+    : 'w-full rounded-xl px-4 py-3 text-left text-sm text-text-primary transition hover:bg-bg-primary/60 disabled:opacity-60 dark:text-text-primary dark:hover:bg-bg-primary/70'
 
   return createPortal(
     <div
       ref={ref}
       className={shellClassName}
-      style={position}
+      style={{ left: state.x, top: state.y }}
       onContextMenu={(event) => event.preventDefault()}
     >
       {title ? (

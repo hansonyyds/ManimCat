@@ -41,7 +41,7 @@ export function PlotPreviewLightbox({
       total={total}
       zoom={zoom}
       editableFilename={editableFilename ?? t('studio.plot.inlinePreview')}
-      variant="studio-light"
+      appearance="studio"
       onZoomChange={onZoomChange}
       onPrev={canNavigate ? onPrev : undefined}
       onNext={canNavigate ? onNext : undefined}
