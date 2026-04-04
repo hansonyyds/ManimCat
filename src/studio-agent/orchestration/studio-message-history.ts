@@ -1,9 +1,13 @@
 import type OpenAI from 'openai'
+import type { ReferenceImage, VisionImageDetail } from '../../types'
 import type { StudioAssistantMessage, StudioMessage, StudioToolPart } from '../domain/types'
 import {
   type StudioStoredAssistantPayload,
   type StudioStoredAssistantToolCall,
 } from './studio-provider-message'
+
+const REFERENCE_IMAGES_START = '[STUDIO_REFERENCE_IMAGES]'
+const REFERENCE_IMAGES_END = '[/STUDIO_REFERENCE_IMAGES]'
 
 export function buildStudioConversationMessages(input: {
   messages: StudioMessage[]
@@ -13,7 +17,7 @@ export function buildStudioConversationMessages(input: {
 
 function toConversationMessages(message: StudioMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
   if (message.role === 'user') {
-    return [{ role: 'user', content: message.text }]
+    return [{ role: 'user', content: buildUserMessageContent(message.text) }]
   }
 
   if (message.role !== 'assistant') {
@@ -126,6 +130,80 @@ function flattenAssistantMessage(message: Extract<StudioMessage, { role: 'assist
   }
 
   return sections.join('\n\n').trim()
+}
+
+function buildUserMessageContent(
+  inputText: string,
+): string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail: VisionImageDetail } }> {
+  const parsed = parseReferenceImagesFromInput(inputText)
+  if (parsed.referenceImages.length === 0) {
+    return inputText
+  }
+
+  return [
+    {
+      type: 'text',
+      text: parsed.text || 'Use the provided reference images as context.',
+    },
+    ...parsed.referenceImages.map((image) => ({
+      type: 'image_url' as const,
+      image_url: {
+        url: image.url,
+        detail: image.detail || 'auto',
+      },
+    })),
+  ]
+}
+
+function parseReferenceImagesFromInput(inputText: string): {
+  text: string
+  referenceImages: ReferenceImage[]
+} {
+  const startIndex = inputText.indexOf(REFERENCE_IMAGES_START)
+  const endIndex = inputText.indexOf(REFERENCE_IMAGES_END)
+  if (startIndex < 0 || endIndex < startIndex) {
+    return {
+      text: inputText,
+      referenceImages: [],
+    }
+  }
+
+  const before = inputText.slice(0, startIndex).trimEnd()
+  const after = inputText.slice(endIndex + REFERENCE_IMAGES_END.length).trimStart()
+  const block = inputText.slice(startIndex + REFERENCE_IMAGES_START.length, endIndex)
+
+  return {
+    text: [before, after].filter(Boolean).join('\n\n'),
+    referenceImages: extractReferenceImages(block),
+  }
+}
+
+function extractReferenceImages(block: string): ReferenceImage[] {
+  return block
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('-'))
+    .map(parseReferenceImageLine)
+    .filter((image): image is ReferenceImage => Boolean(image))
+}
+
+function parseReferenceImageLine(line: string): ReferenceImage | null {
+  const match = line.match(/^-+\s*[^:]+:\s*(https?:\/\/\S+?)(?:\s+\(detail:\s*(auto|low|high)\))?\s*$/i)
+  if (!match) {
+    return null
+  }
+
+  return {
+    url: match[1],
+    detail: normalizeDetail(match[2]),
+  }
+}
+
+function normalizeDetail(value: string | undefined): VisionImageDetail {
+  if (value === 'low' || value === 'high' || value === 'auto') {
+    return value
+  }
+  return 'auto'
 }
 
 

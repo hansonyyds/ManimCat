@@ -112,13 +112,15 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
       setIsImageModeOpen(true)
       return
     }
+    const submittedAttachments = attachments
     setInput('')
-    const runInput = appendStudioReferenceImages(next, attachments)
+    clearAttachments()
+    const runInput = appendStudioReferenceImages(next, submittedAttachments)
     try {
       await onRun(runInput)
-      clearAttachments()
     } catch {
       setInput(next)
+      retainAttachments(submittedAttachments)
     }
     inputRef.current?.focus()
   }
