@@ -27,7 +27,7 @@ export interface StudioParsedCommandBase {
 
 export interface StudioPermissionModeCommand extends StudioParsedCommandBase {
   id: 'permission-mode'
-  group: 'feature'
+  group: 'advanced'
   mode: StudioPermissionMode
 }
 
