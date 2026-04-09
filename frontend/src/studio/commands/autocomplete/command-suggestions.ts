@@ -18,6 +18,10 @@ export function getStudioCommandSuggestions(input: string, maxItems = 6): Studio
     return []
   }
 
+  if (allStudioCommandSuggestions.some((item) => item.trigger.toLowerCase() === normalized)) {
+    return []
+  }
+
   return allStudioCommandSuggestions
     .map((item) => ({
       item,

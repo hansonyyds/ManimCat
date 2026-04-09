@@ -98,7 +98,7 @@ describe('StudioCommandPanel', () => {
     expect(screen.queryByText('/history')).not.toBeInTheDocument()
   })
 
-  it('completes a command from the suggestion list before submitting', async () => {
+  it('completes a command from the suggestion list with tab before submitting', async () => {
     const onRun = vi.fn()
 
     render(
@@ -115,14 +115,39 @@ describe('StudioCommandPanel', () => {
 
     const input = screen.getByPlaceholderText('输入指令...') as HTMLInputElement
     fireEvent.change(input, { target: { value: '/n' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Tab' })
 
     expect(input.value).toBe('/new')
     expect(onRun).not.toHaveBeenCalled()
+    expect(screen.queryByText('studio.commandMenu.title')).not.toBeInTheDocument()
 
     fireEvent.keyDown(input, { key: 'Enter' })
 
     await waitFor(() => expect(onRun).toHaveBeenCalledWith('/new'))
+  })
+
+  it('hides the autocomplete menu when the input exactly matches a command', () => {
+    render(
+      <StudioCommandPanel
+        session={createSession()}
+        messages={[]}
+        latestAssistantText=""
+        isBusy={false}
+        disabled={false}
+        onRun={vi.fn()}
+        onExit={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByPlaceholderText('输入指令...') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '/n' } })
+
+    expect(screen.getByText('studio.commandMenu.title')).toBeInTheDocument()
+
+    fireEvent.keyDown(input, { key: 'Tab' })
+
+    expect(input.value).toBe('/new')
+    expect(screen.queryByText('studio.commandMenu.title')).not.toBeInTheDocument()
   })
 
   it('scrolls the autocomplete list to keep the active command in view while navigating', () => {

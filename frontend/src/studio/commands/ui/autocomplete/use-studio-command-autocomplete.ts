@@ -31,7 +31,7 @@ export function useStudioCommandAutocomplete(input: string) {
       return { handled: true as const }
     }
 
-    if (isOpen && (event.key === 'Tab' || (event.key === 'Enter' && activeSuggestion && input.trim() !== activeSuggestion.trigger))) {
+    if (isOpen && event.key === 'Tab') {
       event.preventDefault()
       if (activeSuggestion) {
         applySuggestion(activeSuggestion, onApply)
