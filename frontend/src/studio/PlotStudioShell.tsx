@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from 'react'
-import { StudioPermissionModeModal } from './controls/StudioPermissionModeModal'
+import { StudioPermissionModeModal } from './commands/ui/StudioPermissionModeModal'
 import { StudioCommandPanel, type StudioCommandPanelHandle } from './components/StudioCommandPanel'
 import { useStudioSession } from './hooks/use-studio-session'
 import { PlotPreviewPanel } from './plot/PlotPreviewPanel'
 import { useI18n } from '../i18n'
 import ManimCatLogo from '../components/ManimCatLogo'
 import { useModalTransition } from '../hooks/useModalTransition'
-import { StudioSessionHistoryModal } from './components/StudioSessionHistoryModal'
+import { StudioSessionHistoryModal } from './commands/ui/StudioSessionHistoryModal'
 
 interface PlotStudioShellProps {
   onExit: () => void

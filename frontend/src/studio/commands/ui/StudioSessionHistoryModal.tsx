@@ -1,7 +1,7 @@
-import { useModalTransition } from '../../hooks/useModalTransition'
-import { useI18n } from '../../i18n'
-import { formatStudioTime, truncateStudioText } from '../theme'
-import type { StudioSessionHistoryEntry } from '../hooks/use-studio-session'
+import { useModalTransition } from '../../../hooks/useModalTransition'
+import { useI18n } from '../../../i18n'
+import { formatStudioTime, truncateStudioText } from '../../theme'
+import type { StudioSessionHistoryEntry } from '../../hooks/use-studio-session'
 
 interface StudioSessionHistoryModalProps {
   isOpen: boolean

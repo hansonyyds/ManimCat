@@ -1,6 +1,6 @@
-import { useI18n } from '../../i18n'
-import { useModalTransition } from '../../hooks/useModalTransition'
-import type { StudioPermissionMode } from '../protocol/studio-agent-types'
+import { useI18n } from '../../../i18n'
+import { useModalTransition } from '../../../hooks/useModalTransition'
+import type { StudioPermissionMode } from '../../protocol/studio-agent-types'
 
 interface StudioPermissionModeModalProps {
   isOpen: boolean
@@ -92,3 +92,4 @@ export function StudioPermissionModeModal({
     </div>
   )
 }
+

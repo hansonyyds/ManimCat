@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
 import { updateStudioSession } from '../api/studio-agent-api'
 import type { StudioPermissionMode, StudioSession } from '../protocol/studio-agent-types'
-import { parseStudioSlashCommand } from './command-parser'
+import { useStudioCommandRunner } from './use-studio-command-runner'
 
-interface UseStudioControlsInput {
+interface UseStudioCommandControlsInput {
   session: StudioSession | null
   onRun: (inputText: string) => Promise<void>
   onSessionUpdated: (session: StudioSession) => Promise<void>
@@ -11,41 +11,23 @@ interface UseStudioControlsInput {
   onCreateSession: () => Promise<void>
 }
 
-export function useStudioControls({
+export function useStudioCommandControls({
   session,
   onRun,
   onSessionUpdated,
   onOpenHistory,
   onCreateSession,
-}: UseStudioControlsInput) {
+}: UseStudioCommandControlsInput) {
   const [pendingMode, setPendingMode] = useState<StudioPermissionMode | null>(null)
   const [isApplyingMode, setIsApplyingMode] = useState(false)
 
-  const submitInput = useCallback(async (inputText: string) => {
-    const command = parseStudioSlashCommand(inputText)
-    if (!command) {
-      await onRun(inputText)
-      return { kind: 'run' as const }
-    }
-
-    if (command.type === 'permission-mode') {
-      setPendingMode(command.mode)
-      return { kind: 'control' as const }
-    }
-
-    if (command.type === 'history') {
-      onOpenHistory()
-      return { kind: 'control' as const }
-    }
-
-    if (command.type === 'new-session') {
-      await onCreateSession()
-      return { kind: 'control' as const }
-    }
-
-    await onRun(inputText)
-    return { kind: 'run' as const }
-  }, [onCreateSession, onOpenHistory, onRun])
+  const submitInput = useStudioCommandRunner({
+    session,
+    onRun,
+    openHistory: onOpenHistory,
+    createSession: onCreateSession,
+    setPendingMode,
+  })
 
   const closePermissionModeModal = useCallback(() => {
     if (isApplyingMode) {
@@ -83,3 +65,4 @@ export function useStudioControls({
     },
   }
 }
+

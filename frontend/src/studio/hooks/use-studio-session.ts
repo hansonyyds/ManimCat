@@ -5,7 +5,7 @@ import {
   getPendingStudioPermissions,
   getStudioSessionSnapshot,
 } from '../api/studio-agent-api'
-import { useStudioControls } from '../controls/use-studio-controls'
+import { useStudioCommandControls } from '../commands/use-studio-command-controls'
 import type { StudioKind, StudioMessage, StudioPermissionRequest, StudioTask } from '../protocol/studio-agent-types'
 import type { StudioSessionState } from '../store/studio-types'
 import { useStudioEvents } from './use-studio-events'
@@ -288,7 +288,7 @@ export function useStudioSession(options: UseStudioSessionOptions = {}) {
     recoverSession: () => createFreshSession('replace'),
   })
 
-  const controls = useStudioControls({
+  const controls = useStudioCommandControls({
     session: state.entities.session,
     onRun: runCommand,
     onSessionUpdated: async (session) => {

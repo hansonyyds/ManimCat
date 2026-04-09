@@ -1,23 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { CanvasWorkspaceModal } from '../../components/canvas/CanvasWorkspaceModal'
-import { ImageInputModeModal } from '../../components/ImageInputModeModal'
-import type { StudioMessage, StudioSession } from '../protocol/studio-agent-types'
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '../../i18n'
-import type { ReferenceImage } from '../../types/api'
-import {
-  addAttachmentTokenToInput,
-  appendStudioReferenceImages,
-  createComposerImageAttachment,
-  filterAttachmentsPresentInInput,
-  removeAttachmentTokenFromInput,
-} from '../composer/attachments'
-import { useStudioComposerAttachments } from '../composer/use-studio-composer-attachments'
-import { StudioComposerAttachmentList } from './StudioComposerAttachmentList'
-import { StudioCommandMessageList } from './command-panel/StudioCommandMessageList'
+import type { StudioMessage, StudioSession } from '../protocol/studio-agent-types'
+import { StudioCommandComposer } from './command-panel/StudioCommandComposer'
+import { StudioCommandViewport } from './command-panel/StudioCommandViewport'
 import {
   createStudioCommandPanelStore,
   type StudioCommandPanelSnapshot,
 } from './command-panel/store'
+import { useStudioCommandComposer } from './command-panel/use-studio-command-composer'
 
 interface StudioCommandPanelProps {
   session: StudioSession | null
@@ -53,16 +43,13 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
   const isTLayout = variant === 't-layout-bottom'
   const isMinimal = variant === 'pure-minimal-bottom'
   const isFrameless = isTLayout || isMinimal
-  const [input, setInput] = useState('')
-  const [isImageModeOpen, setIsImageModeOpen] = useState(false)
-  const [isCanvasOpen, setIsCanvasOpen] = useState(false)
   const [animatedAssistantText, setAnimatedAssistantText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
   const streamRateRef = useRef(0)
   const latestTextMetaRef = useRef<{ text: string; at: number }>({ text: '', at: 0 })
   const lastScrollSignatureRef = useRef('')
+
   const snapshot = useMemo<StudioCommandPanelSnapshot>(() => ({
     messages,
     isBusy,
@@ -71,104 +58,12 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
   }), [animatedAssistantText, isBusy, latestAssistantText, messages])
   const storeRef = useRef(createStudioCommandPanelStore(snapshot))
   const commandStore = storeRef.current
-  const {
-    attachments,
-    attachmentError,
-    fileInputRef,
-    addImageFiles,
-    appendReferenceImages,
-    appendUploadedAttachment,
-    removeAttachment,
-    retainAttachments,
-    clearAttachments,
-  } = useStudioComposerAttachments()
-
-  const focusInput = () => {
-    if (disabled) {
-      return
-    }
-    inputRef.current?.focus()
-  }
-
-  const appendAttachmentTokens = (nextInput: string, nextAttachments: typeof attachments) => {
-    return nextAttachments.reduce((current, attachment) => addAttachmentTokenToInput(current, attachment), nextInput)
-  }
-
-  const addAttachmentsToComposer = (nextAttachments: typeof attachments) => {
-    if (nextAttachments.length === 0) {
-      return
-    }
-    setInput((current) => appendAttachmentTokens(current, nextAttachments))
-    focusInput()
-  }
-
-  const handleSubmit = async () => {
-    const next = input.trim()
-    if (!next || disabled) {
-      return
-    }
-    if (next === '/p') {
-      setInput('')
-      setIsImageModeOpen(true)
-      return
-    }
-    const submittedAttachments = attachments
-    setInput('')
-    clearAttachments()
-    const runInput = appendStudioReferenceImages(next, submittedAttachments)
-    try {
-      await onRun(runInput)
-    } catch {
-      setInput(next)
-      retainAttachments(submittedAttachments)
-    }
-    inputRef.current?.focus()
-  }
-
-  const handleImportImages = () => {
-    setIsImageModeOpen(false)
-    fileInputRef.current?.click()
-  }
-
-  const handleCanvasComplete = (nextImages: ReferenceImage[]) => {
-    const nextAttachments = appendReferenceImages(nextImages)
-    addAttachmentsToComposer(nextAttachments)
-    setIsCanvasOpen(false)
-    focusInput()
-  }
-
-  const handleInputChange = (nextValue: string) => {
-    setInput(nextValue)
-    const retained = filterAttachmentsPresentInInput(nextValue, attachments)
-    if (retained.length !== attachments.length) {
-      retainAttachments(retained)
-    }
-  }
-
-  const handleRemoveAttachment = (attachmentId: string) => {
-    const target = attachments.find((attachment) => attachment.id === attachmentId)
-    if (!target) {
-      return
-    }
-
-    removeAttachment(attachmentId)
-    setInput((current) => removeAttachmentTokenFromInput(current, target))
-  }
-
-  useImperativeHandle(ref, () => ({
-    appendPreviewAttachment: (attachment) => {
-      const nextAttachment = createComposerImageAttachment({
-        url: attachment.url,
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        detail: 'low',
-      })
-      appendUploadedAttachment(nextAttachment)
-      setInput((current) => addAttachmentTokenToInput(current, nextAttachment))
-      focusInput()
-    },
-    focusComposer: focusInput,
-  }), [appendUploadedAttachment, disabled])
+  const composer = useStudioCommandComposer({
+    session,
+    disabled,
+    onRun,
+    composerRef: ref,
+  })
 
   const lastMessage = messages.at(-1) ?? null
 
@@ -194,10 +89,8 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
   }, [isBusy, lastMessage?.id, messages.length])
 
   useEffect(() => {
-    if (!disabled) {
-      focusInput()
-    }
-  }, [disabled, session?.id])
+    composer.focusInput()
+  }, [composer, disabled, session?.id])
 
   useEffect(() => {
     const handleWindowKeyDown = (event: KeyboardEvent) => {
@@ -228,22 +121,22 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
         return
       }
 
-      focusInput()
+      composer.focusInput()
       if (event.key === 'Backspace') {
-        setInput((current) => current.slice(0, -1))
+        composer.handleInputChange(composer.input.slice(0, -1))
         event.preventDefault()
         return
       }
 
       if (event.key.length === 1) {
-        setInput((current) => `${current}${event.key}`)
+        composer.handleInputChange(`${composer.input}${event.key}`)
         event.preventDefault()
       }
     }
 
     window.addEventListener('keydown', handleWindowKeyDown)
     return () => window.removeEventListener('keydown', handleWindowKeyDown)
-  }, [disabled, onEscapePress])
+  }, [composer, disabled, onEscapePress])
 
   useEffect(() => {
     if (!latestAssistantText) {
@@ -305,6 +198,7 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
   }, [animatedAssistantText, latestAssistantText])
 
   const effectivePlaceholder = inputPlaceholderOverride ?? (disabled ? t('studio.initializing') : t('studio.commandPlaceholder'))
+  const enterToSendLabel = t('studio.enterToSend')
 
   return (
     <section
@@ -333,116 +227,28 @@ export const StudioCommandPanel = forwardRef<StudioCommandPanelHandle, StudioCom
         </header>
       )}
 
-      <div
-        ref={scrollRef}
-        className={`min-h-0 flex-1 overflow-y-auto ${isTLayout ? 'px-5 py-5' : isMinimal ? 'pl-4 pr-3 pb-4 pt-1' : 'px-8 py-10'}`}
-      >
-        {messages.length === 0 && !isMinimal && (
-          <div className="flex h-full flex-col items-center justify-center text-center opacity-30">
-            {isTLayout ? (
-               <div className="text-[13px] text-[#999]">{t('studio.readyForCommands')}</div>
-            ) : (
-              <>
-                <div className="mb-4 text-3xl">🐾</div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.4em]">{t('studio.readyForCommands')}</div>
-              </>
-            )}
-          </div>
-        )}
-
-        <StudioCommandMessageList store={commandStore} endRef={endRef} variant={variant} />
-      </div>
-
-      <footer className={`shrink-0 ${isTLayout ? 'border-t border-[#f2f2f2] px-5 py-4' : isMinimal ? 'mt-auto pl-4 pr-3 pt-4' : 'px-8 py-6'}`}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(event) => {
-            const files = event.target.files
-            if (files && files.length > 0) {
-              void addImageFiles(files).then((nextAttachments) => {
-                addAttachmentsToComposer(nextAttachments)
-              })
-            }
-            event.currentTarget.value = ''
-          }}
-        />
-        <StudioComposerAttachmentList
-          attachments={attachments}
-          disabled={isBusy}
-          onRemove={handleRemoveAttachment}
-          variant={isMinimal ? 'minimal' : 'default'}
-        />
-        {attachmentError ? (
-          <p className="mb-3 mt-3 text-xs text-rose-500/80">{attachmentError}</p>
-        ) : null}
-        <div className={`${isMinimal ? 'flex items-baseline gap-4' : 'group flex items-center gap-3'}`}>
-          <span
-            className={`${isTLayout ? 'font-mono text-sm text-[#999]' : isMinimal ? 'block w-4 shrink-0 text-center text-[11px] font-semibold leading-loose text-accent' : 'font-mono text-sm text-text-secondary/40'} tracking-widest`}
-          >
-            {'>'}
-          </span>
-          <div className={`${isMinimal ? 'relative flex-1' : 'flex-1'}`}>
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => handleInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape' && onEscapePress) {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onEscapePress()
-                  return
-                }
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  void handleSubmit()
-                }
-              }}
-              placeholder={isMinimal ? '' : effectivePlaceholder}
-              disabled={false}
-              aria-disabled={disabled}
-              className={`w-full bg-transparent outline-none ${isTLayout ? 'text-[14px] text-[#333] placeholder:text-[#ccc]' : isMinimal ? 'text-[13px] leading-loose text-accent' : 'text-[14px] font-medium leading-relaxed text-text-primary placeholder:text-text-secondary/25'}`}
-            />
-            {isMinimal && (
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center">
-                {input.length === 0 && (
-                  <span className="text-[13px] leading-loose text-accent/20">
-                    {effectivePlaceholder}（{t('studio.enterToSend')}）
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          {!isFrameless && (
-            <div className="flex items-center gap-2 opacity-30">
-               <div className="font-mono text-[9px] uppercase tracking-widest text-text-secondary">{t('studio.enterToSend')}</div>
-            </div>
-          )}
-          {isTLayout && (
-            <span className="text-[11px] text-[#ccc] shrink-0">{t('studio.enterToSend')}</span>
-          )}
-        </div>
-      </footer>
-
-      <ImageInputModeModal
-        isOpen={isImageModeOpen}
-        onClose={() => setIsImageModeOpen(false)}
-        onImport={handleImportImages}
-        onDraw={() => {
-          setIsImageModeOpen(false)
-          setIsCanvasOpen(true)
-        }}
+      <StudioCommandViewport
+        store={commandStore}
+        endRef={endRef}
+        scrollRef={scrollRef}
+        messagesLength={messages.length}
+        isMinimal={isMinimal}
+        isTLayout={isTLayout}
+        variant={variant}
+        readyLabel={t('studio.readyForCommands')}
       />
 
-      <CanvasWorkspaceModal
-        isOpen={isCanvasOpen}
-        onClose={() => setIsCanvasOpen(false)}
-        onComplete={handleCanvasComplete}
+      <StudioCommandComposer
+        variant={variant}
+        isFrameless={isFrameless}
+        isTLayout={isTLayout}
+        isMinimal={isMinimal}
+        isBusy={isBusy}
+        disabled={disabled}
+        effectivePlaceholder={effectivePlaceholder}
+        enterToSendLabel={enterToSendLabel}
+        onEscapePress={onEscapePress}
+        composer={composer}
       />
     </section>
   )
