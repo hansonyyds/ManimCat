@@ -1,11 +1,8 @@
-import path from 'node:path'
-import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import OpenAI from 'openai'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 import type { CustomApiConfig } from '../types'
 
 const OPENAI_TIMEOUT = parseInt(process.env.OPENAI_TIMEOUT || '600000', 10)
-const nodeRequire = createRequire(pathToFileURL(path.join(process.cwd(), '__studio-agent_require__.js')).href)
 
 interface OpenAIBaseConfig {
   timeout: number
@@ -55,14 +52,5 @@ export function createCustomOpenAIClient(config: CustomApiConfig): OpenAI {
 }
 
 function createProxyAgent(proxyUrl: string): unknown {
-  const proxyPackageEntry = path.resolve(process.cwd(), 'node_modules', 'https-proxy-agent', 'dist', 'index.js')
-  const loaded = nodeRequire(proxyPackageEntry) as {
-    HttpsProxyAgent?: new (proxy: string | URL) => unknown
-  }
-
-  if (!loaded.HttpsProxyAgent) {
-    throw new Error('https-proxy-agent could not be loaded')
-  }
-
-  return new loaded.HttpsProxyAgent(proxyUrl)
+  return new HttpsProxyAgent(proxyUrl)
 }
